@@ -1,10 +1,13 @@
 import 'dart:math' as math;
 
+import 'package:camera/camera.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../pic.dart';
 import '../services/pair_service.dart';
 import '../widgets/profile_avatar.dart';
+
 import 'connection_success_screen.dart';
 import 'pair_registration_screen.dart';
 import 'profile_screen.dart';
@@ -81,16 +84,16 @@ class _HomeScreenState extends State<HomeScreen> {
       stream: _membershipStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Scaffold(
+          return const Scaffold(
             body: SafeArea(
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(28),
+                  padding: EdgeInsets.all(28),
                   child: Text(
                     '接続状態を確認できませんでした。\n'
                     '通信環境とFirestoreのルールを確認してください。',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(height: 1.8),
+                    style: TextStyle(height: 1.8),
                   ),
                 ),
               ),
@@ -98,12 +101,13 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        // 未接続と判断する前に、サーバーからの確認を待つ。
         if (!snapshot.hasData ||
             (snapshot.data!.metadata.isFromCache &&
                 !snapshot.data!.exists)) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
           );
         }
 
@@ -200,7 +204,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
+                padding: const EdgeInsets.fromLTRB(
+                  24,
+                  12,
+                  24,
+                  36,
+                ),
                 child: Column(
                   children: [
                     const Text(
@@ -257,8 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// 未接続画面の紹介用イラスト。
-// 写真は、引き続き登録アイコンを使った仮の紹介画像です。
+// 未接続画面の紹介用イラスト
 class _LandingArtwork extends StatelessWidget {
   const _LandingArtwork({
     required this.avatarBase64,
@@ -364,7 +372,7 @@ class _LandingArtwork extends StatelessWidget {
   }
 }
 
-// ペアのプロフィールを取得し、成功画面・ホームを表示する。
+// ペア情報を取得し、接続成功画面・接続後ホームを表示する。
 class _ConnectedExperience extends StatefulWidget {
   const _ConnectedExperience({
     super.key,
@@ -411,7 +419,9 @@ class _ConnectedExperienceState extends State<_ConnectedExperience> {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
           );
         }
 
@@ -459,6 +469,7 @@ class _ConnectedExperienceState extends State<_ConnectedExperience> {
   }
 }
 
+// 接続後のホーム画面
 class _ConnectedHome extends StatelessWidget {
   const _ConnectedHome({
     required this.pair,
@@ -472,6 +483,25 @@ class _ConnectedHome extends StatelessWidget {
   final VoidCallback? onCapture;
   final VoidCallback? onAlbum;
 
+  void _openCamera(BuildContext context) {
+    // 呼び出し元から処理を指定した場合は、そちらを使う。
+    final callback = onCapture;
+
+    if (callback != null) {
+      callback();
+      return;
+    }
+
+    // 阿部さんが作成した撮影画面へ遷移する。
+    // 撮影完了時はPicScreenが写真を返して閉じる。
+    // 写真の保存・共有処理は、次の段階でここにつなぐ。
+    Navigator.of(context).push<XFile>(
+      MaterialPageRoute<XFile>(
+        builder: (_) => const PicScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -481,7 +511,10 @@ class _ConnectedHome extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: ListView(
-              padding: const EdgeInsets.only(top: 32, bottom: 32),
+              padding: const EdgeInsets.only(
+                top: 32,
+                bottom: 32,
+              ),
               children: [
                 Container(
                   height: 300,
@@ -526,12 +559,37 @@ class _ConnectedHome extends StatelessWidget {
                       ),
                       Expanded(
                         child: Center(
-                          child: IconButton(
-                            tooltip: '撮影',
-                            onPressed: onCapture,
-                            icon: const Icon(
-                              Icons.camera_alt_outlined,
-                              size: 56,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: () {
+                                  _openCamera(context);
+                                },
+                                icon: const Icon(
+                                  Icons.camera_alt_outlined,
+                                ),
+                                label: const Text(
+                                  '相手を撮影する',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor:
+                                      const Color(0xFFFF715E),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 18,
+                                  ),
+                                  shape: const StadiumBorder(),
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -550,7 +608,9 @@ class _ConnectedHome extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                  ),
                   child: Row(
                     children: [
                       const Text(
@@ -578,7 +638,9 @@ class _ConnectedHome extends StatelessWidget {
                 ),
                 Container(
                   height: 196,
-                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                  ),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: const Color(0xFFE5E5E5),
