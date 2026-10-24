@@ -42,7 +42,10 @@ class PairService {
   }
 
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchMembership() {
-    return _db.collection('memberships').doc(_uid).snapshots();
+    return _db
+        .collection('memberships')
+        .doc(_uid)
+        .snapshots(includeMetadataChanges: true);
   }
 
   Future<String> createInvitation() async {
@@ -59,7 +62,9 @@ class PairService {
         final invitation = await transaction.get(invitationRef);
 
         if (membership.exists) {
-          throw const PairingException('すでに相手とつながっています。');
+          throw const PairingException(
+            'すでに相手とつながっています。',
+          );
         }
 
         if (invitation.exists) {
@@ -90,7 +95,9 @@ class PairService {
     final code = input.trim();
 
     if (!RegExp(r'^[0-9]{6}$').hasMatch(code)) {
-      throw const PairingException('6桁の招待コードを入力してください。');
+      throw const PairingException(
+        '6桁の招待コードを入力してください。',
+      );
     }
 
     final invitationRef = _db.collection('invitations').doc(code);
@@ -102,13 +109,17 @@ class PairService {
         final myMembership = await transaction.get(myMembershipRef);
 
         if (myMembership.exists) {
-          throw const PairingException('すでに相手とつながっています。');
+          throw const PairingException(
+            'すでに相手とつながっています。',
+          );
         }
 
         final data = invitation.data();
 
         if (data == null) {
-          throw const PairingException('招待コードが見つかりません。');
+          throw const PairingException(
+            '招待コードが見つかりません。',
+          );
         }
 
         final ownerUid = data['ownerUid'] as String;
@@ -122,16 +133,18 @@ class PairService {
 
         if (expiresAt.toDate().isBefore(DateTime.now())) {
           throw const PairingException(
-            '有効期限が切れています。新しいコードを発行してもらってください。',
+            '有効期限が切れています。'
+            '新しいコードを発行してもらってください。',
           );
         }
 
-        // ペアと二人の所属を、まとめて保存する。
-        // 相手が別のペアに所属済みの場合は、ルール側で拒否される。
-        transaction.set(_db.collection('pairs').doc(code), {
-          'memberIds': [ownerUid, uid],
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        transaction.set(
+          _db.collection('pairs').doc(code),
+          {
+            'memberIds': [ownerUid, uid],
+            'createdAt': FieldValue.serverTimestamp(),
+          },
+        );
 
         transaction.set(
           _db.collection('memberships').doc(ownerUid),
@@ -160,11 +173,18 @@ class PairService {
     final pair = await _db.collection('pairs').doc(pairId).get();
 
     if (!pair.exists) {
-      throw const PairingException('ペア情報が見つかりません。');
+      throw const PairingException(
+        'ペア情報が見つかりません。',
+      );
     }
 
-    final members = List<String>.from(pair.data()!['memberIds']);
-    final partnerUid = members.firstWhere((id) => id != uid);
+    final members = List<String>.from(
+      pair.data()!['memberIds'],
+    );
+
+    final partnerUid = members.firstWhere(
+      (id) => id != uid,
+    );
 
     final profiles = await Future.wait([
       _db.collection('users').doc(uid).get(),
@@ -175,7 +195,9 @@ class PairService {
     final partner = profiles[1].data();
 
     if (me == null || partner == null) {
-      throw const PairingException('プロフィールを確認できません。');
+      throw const PairingException(
+        'プロフィールを確認できません。',
+      );
     }
 
     return PairDetails(

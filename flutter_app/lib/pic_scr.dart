@@ -6,8 +6,6 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'pic.dart';
 
-// 「撮影する」ボタンだけの仮の画面。
-// 将来的には本来のホーム画面に置き換える。
 class PicScr extends StatefulWidget {
   const PicScr({super.key});
 
@@ -20,8 +18,10 @@ class _PicScrState extends State<PicScr> {
 
   Future<void> _openCamera() async {
     final result = await Navigator.of(context).push<XFile>(
-      MaterialPageRoute(
-        builder: (context) => const PicScreen(),
+      MaterialPageRoute<XFile>(
+        builder: (_) => const PicScreen(
+          shareOnFinish: false,
+        ),
       ),
     );
 
@@ -42,42 +42,38 @@ class _PicScrState extends State<PicScr> {
       backgroundColor: backgroundColor,
       body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_lastPhotoBytes != null) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.memory(
-                    _lastPhotoBytes!,
-                    width: 220,
-                    height: 220,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-              FilledButton.icon(
-                onPressed: _openCamera,
-                icon: const Icon(Icons.camera_alt_rounded),
-                label: const Text('撮影する'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 28,
-                    vertical: 18,
-                  ),
-                  shape: RoundedRectangleBorder(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_lastPhotoBytes != null) ...[
+                  ClipRRect(
                     borderRadius: BorderRadius.circular(16),
+                    child: Image.memory(
+                      _lastPhotoBytes!,
+                      width: 220,
+                      height: 220,
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(height: 24),
+                ],
+                FilledButton.icon(
+                  onPressed: _openCamera,
+                  icon: const Icon(Icons.camera_alt_rounded),
+                  label: const Text('撮影する'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 18,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

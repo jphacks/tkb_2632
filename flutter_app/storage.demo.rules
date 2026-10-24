@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function pairData(pairId) {
+      return firestore.get(
+        /databases/(default)/documents/pairs/$(pairId)
+      ).data;
+    }
+
+    function isHistoricalMember(pairId) {
+      return request.auth != null
+        && request.auth.uid in pairData(pairId).memberIds;
+    }
+
+    function isActiveMember(pairId) {
+      return isHistoricalMember(pairId)
+        && !('disconnectedAt' in pairData(pairId));
+    }
+
+    function sessionData(pairId, sessionId) {
+      return firestore.get(
+        /databases/(default)/documents/pairs/$(pairId)/sessions/$(sessionId)
+      ).data;
+    }
+
+    match /pairs/{pairId}/sessions/{sessionId}/{fileName} {
+      // 接続解除後も、元の二人は共有済み写真を閲覧できる。
+      allow get: if isHistoricalMember(pairId)
+        && (
+          sessionData(pairId, sessionId).status == 'shared'
+          || sessionData(pairId, sessionId).authorUid
+            == request.auth.uid
+        );
+
+      // 新しい写真の共有は接続中だけ。
+      allow create, update: if isActiveMember(pairId)
+        && sessionData(pairId, sessionId).authorUid
+          == request.auth.uid
+        && sessionData(pairId, sessionId).status == 'uploading'
+        && (
+          'pairs/' + pairId + '/sessions/' + sessionId + '/' + fileName
+        ) in sessionData(pairId, sessionId).photoPaths
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= 2 * 1024 * 1024;
+
+      allow delete: if isActiveMember(pairId)
+        && sessionData(pairId, sessionId).authorUid
+          == request.auth.uid
+        && sessionData(pairId, sessionId).status == 'uploading';
+    }
+  }
+}
