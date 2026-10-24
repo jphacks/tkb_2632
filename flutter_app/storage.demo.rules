@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isPairMember(pairId) {
+      let pair = firestore.get(
+        /databases/(default)/documents/pairs/$(pairId)
+      ).data;
+
+      return request.auth != null
+        && request.auth.uid in pair.memberIds
+        && !('disconnectedAt' in pair);
+    }
+
+    function sessionData(pairId, sessionId) {
+      return firestore.get(
+        /databases/(default)/documents/pairs/$(pairId)/sessions/$(sessionId)
+      ).data;
+    }
+
+    match /pairs/{pairId}/sessions/{sessionId}/{fileName} {
+      allow get: if isPairMember(pairId)
+        && (
+          sessionData(pairId, sessionId).status == 'shared'
+          || sessionData(pairId, sessionId).authorUid
+             == request.auth.uid
+        );
+
+      allow create, update: if isPairMember(pairId)
+        && sessionData(pairId, sessionId).authorUid
+           == request.auth.uid
+        && sessionData(pairId, sessionId).status == 'uploading'
+        && (
+          'pairs/' + pairId + '/sessions/' + sessionId + '/' + fileName
+        ) in sessionData(pairId, sessionId).photoPaths
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= 2 * 1024 * 1024;
+
+      allow delete: if isPairMember(pairId)
+        && sessionData(pairId, sessionId).authorUid
+           == request.auth.uid
+        && sessionData(pairId, sessionId).status == 'uploading';
+    }
+  }
+}

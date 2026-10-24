@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 
 import '../pic.dart';
 import '../services/pair_service.dart';
+import '../widgets/account_actions.dart';
 import '../widgets/profile_avatar.dart';
 
+import 'album_screen.dart';
 import 'connection_success_screen.dart';
 import 'pair_registration_screen.dart';
 import 'profile_screen.dart';
@@ -67,8 +69,49 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _openPairRegistration({required bool join}) {
-    Navigator.of(context).push(
+  Future<void> _startConnection() async {
+    final join = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '二人のつながりを始める',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.qr_code_rounded),
+                  title: const Text('招待コードを作る'),
+                  subtitle: const Text('相手にコードを伝える'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(sheetContext).pop(false),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.keyboard_rounded),
+                  title: const Text('招待コードを入力する'),
+                  subtitle: const Text('相手から届いたコードでつながる'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(sheetContext).pop(true),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (join == null || !mounted) return;
+
+    Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => PairRegistrationScreen(
           nickname: widget.nickname,
@@ -85,16 +128,13 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const Scaffold(
-            body: SafeArea(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(28),
-                  child: Text(
-                    '接続状態を確認できませんでした。\n'
-                    '通信環境とFirestoreのルールを確認してください。',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(height: 1.8),
-                  ),
+            body: Center(
+              child: Padding(
+                padding: EdgeInsets.all(28),
+                child: Text(
+                  '接続状態を確認できませんでした。\n'
+                  '通信環境とFirestoreのルールを確認してください。',
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
@@ -105,9 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
             (snapshot.data!.metadata.isFromCache &&
                 !snapshot.data!.exists)) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -118,7 +156,13 @@ class _HomeScreenState extends State<HomeScreen> {
           return _buildUnconnectedHome();
         }
 
-        final pairId = membership.data()!['pairId'] as String;
+        final pairId = membership.data()?['pairId'];
+
+        if (pairId is! String) {
+          return const Scaffold(
+            body: Center(child: Text('接続情報が正しくありません。')),
+          );
+        }
 
         return _ConnectedExperience(
           key: ValueKey(pairId),
@@ -158,42 +202,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          20,
-                          16,
-                          20,
-                          0,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Semantics(
-                              label: 'プロフィールを変更',
-                              button: true,
-                              child: InkWell(
-                                onTap: _editProfile,
-                                borderRadius: BorderRadius.circular(24),
-                                child: ProfileAvatar(
-                                  avatarBase64: widget.avatarBase64,
-                                  size: 40,
-                                ),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Semantics(
+                            label: 'プロフィールを変更',
+                            button: true,
+                            child: InkWell(
+                              onTap: _editProfile,
+                              borderRadius: BorderRadius.circular(24),
+                              child: ProfileAvatar(
+                                avatarBase64: widget.avatarBase64,
+                                size: 40,
                               ),
                             ),
-                            FilledButton.icon(
-                              onPressed: () {
-                                _openPairRegistration(join: true);
-                              },
-                              icon: const Icon(
-                                Icons.people_alt_rounded,
-                                size: 20,
-                              ),
-                              label: const Text('参加する'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFFFFFAF7),
-                                foregroundColor: const Color(0xFF291F1D),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                       _LandingArtwork(
@@ -204,12 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  24,
-                  12,
-                  24,
-                  36,
-                ),
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
                 child: Column(
                   children: [
                     const Text(
@@ -226,9 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: () {
-                          _openPairRegistration(join: false);
-                        },
+                        onPressed: _startConnection,
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFFFF715E),
                           foregroundColor: Colors.white,
@@ -249,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      '招待された方は、コードで参加',
+                      'コードを作る・入力する方法を選べます',
                       style: TextStyle(
                         color: Color(0xFF929296),
                         fontSize: 13,
@@ -266,11 +282,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// 未接続画面の紹介用イラスト
 class _LandingArtwork extends StatelessWidget {
-  const _LandingArtwork({
-    required this.avatarBase64,
-  });
+  const _LandingArtwork({required this.avatarBase64});
 
   final String avatarBase64;
 
@@ -372,7 +385,6 @@ class _LandingArtwork extends StatelessWidget {
   }
 }
 
-// ペア情報を取得し、接続成功画面・接続後ホームを表示する。
 class _ConnectedExperience extends StatefulWidget {
   const _ConnectedExperience({
     super.key,
@@ -401,15 +413,8 @@ class _ConnectedExperienceState extends State<_ConnectedExperience> {
   @override
   void initState() {
     super.initState();
-
     _showCelebration = widget.showCelebration;
     _pairFuture = PairService().loadPair(widget.pairId);
-  }
-
-  void _retry() {
-    setState(() {
-      _pairFuture = PairService().loadPair(widget.pairId);
-    });
   }
 
   @override
@@ -419,27 +424,28 @@ class _ConnectedExperienceState extends State<_ConnectedExperience> {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
         if (snapshot.hasError) {
           return Scaffold(
-            body: SafeArea(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('二人の情報を取得できませんでした。'),
-                    const SizedBox(height: 20),
-                    FilledButton(
-                      onPressed: _retry,
-                      child: const Text('再試行'),
-                    ),
-                  ],
-                ),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('二人の情報を取得できませんでした。'),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: () {
+                      setState(() {
+                        _pairFuture =
+                            PairService().loadPair(widget.pairId);
+                      });
+                    },
+                    child: const Text('再試行'),
+                  ),
+                ],
               ),
             ),
           );
@@ -451,14 +457,13 @@ class _ConnectedExperienceState extends State<_ConnectedExperience> {
           return ConnectionSuccessScreen(
             pair: pair,
             onContinue: () {
-              setState(() {
-                _showCelebration = false;
-              });
+              setState(() => _showCelebration = false);
             },
           );
         }
 
         return _ConnectedHome(
+          pairId: widget.pairId,
           pair: pair,
           onEditProfile: widget.onEditProfile,
           onCapture: widget.onCapture,
@@ -469,41 +474,74 @@ class _ConnectedExperienceState extends State<_ConnectedExperience> {
   }
 }
 
-// 接続後のホーム画面
-class _ConnectedHome extends StatelessWidget {
+class _ConnectedHome extends StatefulWidget {
   const _ConnectedHome({
+    required this.pairId,
     required this.pair,
     required this.onEditProfile,
     this.onCapture,
     this.onAlbum,
   });
 
+  final String pairId;
   final PairDetails pair;
   final VoidCallback onEditProfile;
   final VoidCallback? onCapture;
   final VoidCallback? onAlbum;
 
-  void _openCamera(BuildContext context) {
-    // 呼び出し元から処理を指定した場合は、そちらを使う。
-    final callback = onCapture;
+  @override
+  State<_ConnectedHome> createState() => _ConnectedHomeState();
+}
 
-    if (callback != null) {
-      callback();
+class _ConnectedHomeState extends State<_ConnectedHome> {
+  late final Stream<List<SharedPhoto>> _photosStream;
+  bool _accountBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _photosStream = watchSharedPhotos(widget.pairId);
+  }
+
+  Future<void> _openCamera() async {
+    if (widget.onCapture != null) {
+      widget.onCapture!();
       return;
     }
 
-    // 阿部さんが作成した撮影画面へ遷移する。
-    // 撮影完了時はPicScreenが写真を返して閉じる。
-    // 写真の保存・共有処理は、次の段階でここにつなぐ。
-    Navigator.of(context).push<XFile>(
+    final result = await Navigator.of(context).push<XFile>(
       MaterialPageRoute<XFile>(
         builder: (_) => const PicScreen(),
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('写真を共有しました。')),
+    );
+  }
+
+  void _openAlbum() {
+    if (widget.onAlbum != null) {
+      widget.onAlbum!();
+      return;
+    }
+
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AlbumScreen(
+          pairId: widget.pairId,
+          partnerName: widget.pair.partnerName,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final pair = widget.pair;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFCFBFA),
       body: SafeArea(
@@ -511,158 +549,215 @@ class _ConnectedHome extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: ListView(
-              padding: const EdgeInsets.only(
-                top: 32,
-                bottom: 32,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
               children: [
+                Row(
+                  children: [
+                    Semantics(
+                      label: 'プロフィールを変更',
+                      button: true,
+                      child: InkWell(
+                        onTap: _accountBusy ? null : widget.onEditProfile,
+                        child: ProfileAvatar(
+                          avatarBase64: pair.myAvatar,
+                          size: 42,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ProfileAvatar(
+                      avatarBase64: pair.partnerAvatar,
+                      size: 42,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        '${pair.partnerName}と接続中',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
                 Container(
-                  height: 300,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 38,
+                  ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFDFDFDF),
-                    borderRadius: BorderRadius.circular(6),
+                    color: const Color(0xFFF3E9E3),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                   child: Column(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
+                      const Icon(
+                        Icons.camera_alt_outlined,
+                        size: 46,
+                        color: Color(0xFFB95849),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'ふたりの写真を、ここから。',
+                        style: TextStyle(fontSize: 17),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _accountBusy ? null : _openCamera,
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('相手を撮影する'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF715E),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 18,
+                            ),
+                            shape: const StadiumBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: _accountBusy ? null : _openAlbum,
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('ふたりのアルバム'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                StreamBuilder<List<SharedPhoto>>(
+                  stream: _photosStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          '写真を取得できませんでした。\n'
+                          'エミュレーターとルールを確認してください。',
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+
+                    if (!snapshot.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+
+                    final now = DateTime.now();
+
+                    // 撮影時刻ではなく、共有が完了した日の写真。
+                    final todayPhotos = snapshot.data!.where((photo) {
+                      final date = photo.sharedAt;
+
+                      return date != null &&
+                          date.year == now.year &&
+                          date.month == now.month &&
+                          date.day == now.day;
+                    }).toList();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Semantics(
-                              label: 'プロフィールを変更',
-                              button: true,
-                              child: InkWell(
-                                onTap: onEditProfile,
-                                child: ProfileAvatar(
-                                  avatarBase64: pair.myAvatar,
-                                  size: 42,
-                                ),
+                            const Text(
+                              '今日の写真',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            ProfileAvatar(
-                              avatarBase64: pair.partnerAvatar,
-                              size: 42,
-                            ),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: Text(
-                                '${pair.partnerName}と接続中',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                            const SizedBox(width: 8),
+                            Text('${todayPhotos.length}枚'),
+                            const Spacer(),
+                            TextButton(
+                              onPressed:
+                                  _accountBusy ? null : _openAlbum,
+                              child: const Text('すべて見る ›'),
                             ),
                           ],
                         ),
-                      ),
-                      Expanded(
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
+                        const SizedBox(height: 8),
+                        if (todayPhotos.isEmpty)
+                          Container(
+                            height: 180,
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFECE9),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.icon(
-                                onPressed: () {
-                                  _openCamera(context);
-                                },
-                                icon: const Icon(
-                                  Icons.camera_alt_outlined,
-                                ),
-                                label: const Text(
-                                  '相手を撮影する',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                            child: const Text(
+                              '今日の写真はまだありません。\n'
+                              '撮影を終了して共有すると、ここに届きます。',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(height: 1.8),
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            height: 190,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: todayPhotos.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(width: 10),
+                              itemBuilder: (context, index) {
+                                final photo = todayPhotos[index];
+
+                                return SizedBox(
+                                  width: 140,
+                                  child: GestureDetector(
+                                    onTap: _accountBusy
+                                        ? null
+                                        : () {
+                                            showSharedPhoto(
+                                              context,
+                                              photo,
+                                              widget.pairId,
+                                            );
+                                          },
+                                    child: ClipRRect(
+                                      borderRadius:
+                                          BorderRadius.circular(14),
+                                      child: SharedPhotoImage(
+                                        key: ValueKey(photo.path),
+                                        path: photo.path,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor:
-                                      const Color(0xFFFF715E),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 18,
-                                  ),
-                                  shape: const StadiumBorder(),
-                                ),
-                              ),
+                                );
+                              },
                             ),
                           ),
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 24),
-                        child: Text(
-                          'ふたりの写真を、ここから。',
-                          style: TextStyle(
-                            color: Color(0xFF787878),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  },
                 ),
-                const SizedBox(height: 18),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      const Text(
-                        '今日の写真',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        '0枚',
-                        style: TextStyle(
-                          color: Color(0xFF929296),
-                          fontSize: 12,
-                        ),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: onAlbum,
-                        child: const Text('すべて見る ›'),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  height: 196,
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                  ),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE5E5E5),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.photo_library_outlined,
-                        color: Color(0xFF999999),
-                        size: 36,
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'まだ写真はありません',
-                        style: TextStyle(
-                          color: Color(0xFF888888),
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 24),
+                AccountActions(
+                  enabled: !_accountBusy,
+                  onFinished: () {
+                    // membershipの変更を監視しているため、
+                    // 両方のホームが未接続画面へ自動で切り替わる。
+                  },
+                  onBusyChanged: (busy) {
+                    if (!mounted) return;
+                    setState(() => _accountBusy = busy);
+                  },
                 ),
               ],
             ),

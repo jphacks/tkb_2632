@@ -1,0 +1,396 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function membershipPath(uid) {
+      return /databases/$(database)/documents/memberships/$(uid);
+    }
+
+    function pairPath(pairId) {
+      return /databases/$(database)/documents/pairs/$(pairId);
+    }
+
+    function invitationPath(code) {
+      return /databases/$(database)/documents/invitations/$(code);
+    }
+
+    function sessionPath(pairId, sessionId) {
+      return /databases/$(database)/documents/pairs/$(pairId)/sessions/$(sessionId);
+    }
+
+    function feedbackPath(pairId, sessionId) {
+      return /databases/$(database)/documents/pairs/$(pairId)/sessions/$(sessionId)/feedback/selection;
+    }
+
+    function notificationPath(uid, pairId, sessionId) {
+      let notificationId = pairId + '_' + sessionId;
+      return /databases/$(database)/documents/users/$(uid)/notifications/$(notificationId);
+    }
+
+    // 過去にこのペアに所属していた二人。
+    function isHistoricalMember(pairId) {
+      return signedIn()
+        && request.auth.uid in get(pairPath(pairId)).data.memberIds;
+    }
+
+    // 現在も接続している二人。
+    function isActiveMember(pairId) {
+      return isHistoricalMember(pairId)
+        && !('disconnectedAt' in get(pairPath(pairId)).data);
+    }
+
+    function samePair(uid) {
+      return signedIn()
+        && exists(membershipPath(request.auth.uid))
+        && exists(membershipPath(uid))
+        && get(membershipPath(request.auth.uid)).data.pairId
+          == get(membershipPath(uid)).data.pairId;
+    }
+
+    function validProfile() {
+      let data = request.resource.data;
+
+      return data.keys().hasAll(['nickname'])
+        && data.keys().hasOnly(['nickname', 'avatarBase64'])
+        && data.nickname is string
+        && data.nickname.size() >= 1
+        && data.nickname.size() <= 24
+        && (
+          !('avatarBase64' in data)
+          || (
+            data.avatarBase64 is string
+            && data.avatarBase64.size() <= 60000
+          )
+        );
+    }
+
+    function validNewPair(pairId, data) {
+      let invitation = get(invitationPath(pairId)).data;
+
+      return signedIn()
+        && pairId.matches('^[0-9]{6}$')
+        && data.keys().hasOnly(['memberIds', 'createdAt'])
+        && data.memberIds is list
+        && data.memberIds.size() == 2
+        && invitation.ownerUid != request.auth.uid
+        && invitation.expiresAt > request.time
+        && data.memberIds
+          == [invitation.ownerUid, request.auth.uid]
+        && data.createdAt == request.time;
+    }
+
+    function validReasonList(paths, favorites) {
+      return paths is list
+        && paths.size() <= 30
+        && paths.hasOnly(favorites);
+    }
+
+    // 理由ごとに、その理由を選んだ写真のパスを保存する。
+    function validReasons(reasons, favorites) {
+      return reasons is map
+        && reasons.keys().hasAll([
+          'expression',
+          'composition',
+          'size',
+          'background',
+          'light',
+          'mood'
+        ])
+        && reasons.keys().hasOnly([
+          'expression',
+          'composition',
+          'size',
+          'background',
+          'light',
+          'mood'
+        ])
+        && validReasonList(reasons.expression, favorites)
+        && validReasonList(reasons.composition, favorites)
+        && validReasonList(reasons.size, favorites)
+        && validReasonList(reasons.background, favorites)
+        && validReasonList(reasons.light, favorites)
+        && validReasonList(reasons.mood, favorites)
+        && reasons.expression.toSet()
+          .union(reasons.composition.toSet())
+          .union(reasons.size.toSet())
+          .union(reasons.background.toSet())
+          .union(reasons.light.toSet())
+          .union(reasons.mood.toSet())
+          .hasAll(favorites);
+    }
+
+    function validQuiz(data, photoPaths) {
+      let remaining = photoPaths.toSet()
+        .difference(data.favorites.toSet());
+
+      return data.correctPath is string
+        && data.correctPath in data.favorites
+        && data.quizAvailable is bool
+        && data.choices is list
+        && (
+          (
+            remaining.size() >= 2
+            && data.quizAvailable == true
+            && data.choices.size() == 3
+            && data.choices.toSet().size() == 3
+            && data.choices.hasOnly(photoPaths)
+            && data.correctPath in data.choices
+            && data.choices.toSet()
+              .intersection(data.favorites.toSet()).size() == 1
+          )
+          ||
+          (
+            remaining.size() < 2
+            && data.quizAvailable == false
+            && data.choices.size() == 0
+          )
+        );
+    }
+
+    function validFeedback(pairId, sessionId) {
+      let data = request.resource.data;
+      let session = get(sessionPath(pairId, sessionId)).data;
+      let notification = getAfter(
+        notificationPath(session.authorUid, pairId, sessionId)
+      ).data;
+
+      return isHistoricalMember(pairId)
+        && session.status == 'shared'
+        && session.authorUid != request.auth.uid
+        && data.keys().hasAll([
+          'authorUid',
+          'selectedByUid',
+          'favorites',
+          'reasons',
+          'correctPath',
+          'choices',
+          'quizAvailable',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'authorUid',
+          'selectedByUid',
+          'favorites',
+          'reasons',
+          'correctPath',
+          'choices',
+          'quizAvailable',
+          'createdAt'
+        ])
+        && data.authorUid == session.authorUid
+        && data.selectedByUid == request.auth.uid
+        && data.createdAt == request.time
+        && data.favorites is list
+        && data.favorites.size() >= 1
+        && data.favorites.size() <= 30
+        && data.favorites.toSet().size() == data.favorites.size()
+        && data.favorites.hasOnly(session.photoPaths)
+        && validReasons(data.reasons, data.favorites)
+        && validQuiz(data, session.photoPaths)
+        && notification.pairId == pairId
+        && notification.sessionId == sessionId
+        && notification.createdAt == request.time
+        && notification.read == false
+        && notification.quizAvailable == data.quizAvailable;
+    }
+
+    function validNotification(userId, notificationId) {
+      let data = request.resource.data;
+      let session = get(
+        sessionPath(data.pairId, data.sessionId)
+      ).data;
+      let feedback = getAfter(
+        feedbackPath(data.pairId, data.sessionId)
+      ).data;
+
+      return signedIn()
+        && data.keys().hasAll([
+          'pairId',
+          'sessionId',
+          'quizAvailable',
+          'createdAt',
+          'read'
+        ])
+        && data.keys().hasOnly([
+          'pairId',
+          'sessionId',
+          'quizAvailable',
+          'createdAt',
+          'read'
+        ])
+        && data.pairId is string
+        && data.sessionId is string
+        && notificationId == data.pairId + '_' + data.sessionId
+        && isHistoricalMember(data.pairId)
+        && session.status == 'shared'
+        && session.authorUid == userId
+        && userId != request.auth.uid
+        && !exists(feedbackPath(data.pairId, data.sessionId))
+        && feedback.selectedByUid == request.auth.uid
+        && feedback.authorUid == userId
+        && feedback.createdAt == request.time
+        && data.createdAt == request.time
+        && data.read == false
+        && data.quizAvailable == feedback.quizAvailable;
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn()
+        && (
+          request.auth.uid == userId
+          || samePair(userId)
+        );
+
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && validProfile();
+
+      match /notifications/{notificationId} {
+        allow get, list: if signedIn()
+          && request.auth.uid == userId;
+
+        allow create: if validNotification(userId, notificationId);
+
+        allow update: if signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['read'])
+          && request.resource.data.read == true;
+      }
+    }
+
+    match /invitations/{code} {
+      allow get: if signedIn();
+
+      allow create: if signedIn()
+        && code.matches('^[0-9]{6}$')
+        && request.resource.data.keys()
+          .hasOnly(['ownerUid', 'createdAt', 'expiresAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt
+          <= request.time + duration.value(1, 'h')
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        )
+        && !exists(membershipPath(request.auth.uid));
+    }
+
+    match /memberships/{userId} {
+      allow get: if signedIn()
+        && request.auth.uid == userId;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['pairId'])
+        && request.resource.data.pairId is string
+        && !exists(pairPath(request.resource.data.pairId))
+        && validNewPair(
+          request.resource.data.pairId,
+          getAfter(pairPath(request.resource.data.pairId)).data
+        )
+        && userId in getAfter(
+          pairPath(request.resource.data.pairId)
+        ).data.memberIds;
+
+      allow delete: if signedIn()
+        && resource.data.pairId is string
+        && isActiveMember(resource.data.pairId)
+        && userId in get(
+          pairPath(resource.data.pairId)
+        ).data.memberIds
+        && getAfter(
+          pairPath(resource.data.pairId)
+        ).data.disconnectedAt == request.time;
+    }
+
+    match /pairs/{pairId} {
+      // アルバム一覧では memberIds に自分を含むペアだけ検索する。
+      allow get, list: if signedIn()
+        && request.auth.uid in resource.data.memberIds;
+
+      allow create: if validNewPair(pairId, request.resource.data)
+        && !exists(
+          membershipPath(request.resource.data.memberIds[0])
+        )
+        && !exists(
+          membershipPath(request.resource.data.memberIds[1])
+        )
+        && getAfter(
+          membershipPath(request.resource.data.memberIds[0])
+        ).data.pairId == pairId
+        && getAfter(
+          membershipPath(request.resource.data.memberIds[1])
+        ).data.pairId == pairId;
+
+      allow update: if isActiveMember(pairId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['disconnectedAt'])
+        && request.resource.data.disconnectedAt == request.time
+        && !existsAfter(
+          membershipPath(resource.data.memberIds[0])
+        )
+        && !existsAfter(
+          membershipPath(resource.data.memberIds[1])
+        );
+
+      match /sessions/{sessionId} {
+        allow get: if isHistoricalMember(pairId)
+          && (
+            resource.data.status == 'shared'
+            || resource.data.authorUid == request.auth.uid
+          );
+
+        // 作成前のセッションを撮影者がトランザクションで確認する。
+        allow get: if isActiveMember(pairId)
+          && !exists(sessionPath(pairId, sessionId));
+
+        allow list: if isHistoricalMember(pairId)
+          && resource.data.status == 'shared';
+
+        allow create: if isActiveMember(pairId)
+          && request.resource.data.keys().hasOnly([
+            'authorUid',
+            'createdAt',
+            'photoPaths',
+            'status'
+          ])
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.status == 'uploading'
+          && request.resource.data.photoPaths is list
+          && request.resource.data.photoPaths.size() >= 1
+          && request.resource.data.photoPaths.size() <= 30
+          && request.resource.data.photoPaths.toSet().size()
+            == request.resource.data.photoPaths.size();
+
+        allow update: if isActiveMember(pairId)
+          && resource.data.authorUid == request.auth.uid
+          && resource.data.status == 'uploading'
+          && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['status', 'sharedAt'])
+          && request.resource.data.status == 'shared'
+          && request.resource.data.sharedAt == request.time;
+
+        allow delete: if isActiveMember(pairId)
+          && resource.data.authorUid == request.auth.uid
+          && resource.data.status == 'uploading';
+
+        match /feedback/{feedbackId} {
+          allow get: if isHistoricalMember(pairId)
+            && feedbackId == 'selection';
+
+          allow create: if feedbackId == 'selection'
+            && validFeedback(pairId, sessionId);
+
+          // 確定後の変更・削除は、この試作版では許可しない。
+        }
+      }
+    }
+  }
+}
