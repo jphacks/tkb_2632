@@ -1,10 +1,10 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-import 'main.dart';
+import 'app_colors.dart';
 
 // カメラでの撮影を行う画面。
-// 撮影が完了すると、呼び出し元に XFile を渡して閉じる（確認画面は挟まない）。
+// 撮影が完了すると、呼び出し元に XFile を渡して閉じる。
 // 写真の保存・アップロードはこの画面の責務ではない。
 class PicScreen extends StatefulWidget {
   const PicScreen({super.key});
@@ -38,7 +38,8 @@ class _PicScreenState extends State<PicScreen> {
         return;
       }
 
-      // 背面カメラを初期カメラにする。見つからない場合は先頭のカメラを使う。
+      // 背面カメラを初期カメラにする。
+      // 見つからない場合は先頭のカメラを使う。
       final backIndex = _cameras.indexWhere(
         (camera) => camera.lensDirection == CameraLensDirection.back,
       );
@@ -89,16 +90,20 @@ class _PicScreenState extends State<PicScreen> {
       await _openCamera(nextIndex);
     } on CameraException catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text(_messageForCameraException(error))),
+          SnackBar(
+            content: Text(_messageForCameraException(error)),
+          ),
         );
     }
   }
 
   Future<void> _takePicture() async {
     final controller = _controller;
+
     if (controller == null || !controller.value.isInitialized) return;
     if (_isTakingPicture) return;
 
@@ -111,14 +116,17 @@ class _PicScreenState extends State<PicScreen> {
 
       if (!mounted) return;
 
-      // 確認画面は挟まず、撮影結果をそのまま呼び出し元へ返す。
+      // 確認画面は挟まず、撮影結果を呼び出し元へ返す。
       Navigator.of(context).pop(file);
     } on CameraException catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text(_messageForCameraException(error))),
+          SnackBar(
+            content: Text(_messageForCameraException(error)),
+          ),
         );
     } finally {
       if (mounted) {
@@ -159,11 +167,14 @@ class _PicScreenState extends State<PicScreen> {
             }
 
             final controller = _controller;
+
             if (snapshot.connectionState != ConnectionState.done ||
                 controller == null ||
                 !controller.value.isInitialized) {
               return const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                ),
               );
             }
 
@@ -190,14 +201,19 @@ class _PicScreenState extends State<PicScreen> {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, height: 1.8),
+              style: const TextStyle(
+                color: Colors.white,
+                height: 1.8,
+              ),
             ),
             const SizedBox(height: 24),
             OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white),
+                side: const BorderSide(
+                  color: Colors.white,
+                ),
               ),
               child: const Text('戻る'),
             ),
@@ -211,7 +227,9 @@ class _PicScreenState extends State<PicScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Center(child: CameraPreview(controller)),
+        Center(
+          child: CameraPreview(controller),
+        ),
         Positioned(
           top: 8,
           left: 4,
@@ -251,7 +269,10 @@ class _PicScreenState extends State<PicScreen> {
                   shape: BoxShape.circle,
                   color: Colors.white,
                   border: Border.fromBorderSide(
-                    BorderSide(color: accentColor, width: 4),
+                    BorderSide(
+                      color: accentColor,
+                      width: 4,
+                    ),
                   ),
                 ),
                 child: _isTakingPicture

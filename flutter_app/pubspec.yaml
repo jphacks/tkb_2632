@@ -37,6 +37,10 @@ dependencies:
   firebase_core: ^5.1.0
   firebase_auth: ^7.0.1
   cloud_firestore: ^7.1.0
+  device_preview: ^3.0.0
+  image_picker: ^1.2.4
+  image: ^4.12.0
+  qr_flutter: ^4.1.0
   camera: ^0.11.0+2
 
 dev_dependencies:

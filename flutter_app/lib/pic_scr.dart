@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-import 'main.dart';
+import 'app_colors.dart';
 import 'pic.dart';
 
 // 「撮影する」ボタンだけの仮の画面。
@@ -20,12 +20,15 @@ class _PicScrState extends State<PicScr> {
 
   Future<void> _openCamera() async {
     final result = await Navigator.of(context).push<XFile>(
-      MaterialPageRoute(builder: (context) => const PicScreen()),
+      MaterialPageRoute(
+        builder: (context) => const PicScreen(),
+      ),
     );
 
     if (result == null || !mounted) return;
 
     final bytes = await result.readAsBytes();
+
     if (!mounted) return;
 
     setState(() {
