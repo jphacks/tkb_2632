@@ -18,6 +18,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/invitations/$(code);
     }
 
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
     function sessionPath(pairId, sessionId) {
       return /databases/$(database)/documents/pairs/$(pairId)/sessions/$(sessionId);
     }
@@ -31,13 +35,11 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(uid)/notifications/$(notificationId);
     }
 
-    // 過去にこのペアに所属していた二人。
     function isHistoricalMember(pairId) {
       return signedIn()
         && request.auth.uid in get(pairPath(pairId)).data.memberIds;
     }
 
-    // 現在も接続している二人。
     function isActiveMember(pairId) {
       return isHistoricalMember(pairId)
         && !('disconnectedAt' in get(pairPath(pairId)).data);
@@ -83,13 +85,24 @@ service cloud.firestore {
         && data.createdAt == request.time;
     }
 
+    // 保存できるのは、現在の二人のプロフィールの写しだけ。
+    function validMemberProfiles() {
+      let members = resource.data.memberIds;
+      let profiles = request.resource.data.memberProfiles;
+
+      return profiles is map
+        && profiles.keys().hasAll(members)
+        && profiles.keys().hasOnly(members)
+        && profiles[members[0]] == get(userPath(members[0])).data
+        && profiles[members[1]] == get(userPath(members[1])).data;
+    }
+
     function validReasonList(paths, favorites) {
       return paths is list
         && paths.size() <= 30
         && paths.hasOnly(favorites);
     }
 
-    // 理由ごとに、その理由を選んだ写真のパスを保存する。
     function validReasons(reasons, favorites) {
       return reasons is map
         && reasons.keys().hasAll([
@@ -276,9 +289,7 @@ service cloud.firestore {
         && request.resource.data.expiresAt > request.time
         && request.resource.data.expiresAt
           <= request.time + duration.value(1, 'h')
-        && exists(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        )
+        && exists(userPath(request.auth.uid))
         && !exists(membershipPath(request.auth.uid));
     }
 
@@ -310,7 +321,6 @@ service cloud.firestore {
     }
 
     match /pairs/{pairId} {
-      // アルバム一覧では memberIds に自分を含むペアだけ検索する。
       allow get, list: if signedIn()
         && request.auth.uid in resource.data.memberIds;
 
@@ -328,6 +338,13 @@ service cloud.firestore {
           membershipPath(request.resource.data.memberIds[1])
         ).data.pairId == pairId;
 
+      // 接続中に二人の名前・アイコンを保存する。
+      allow update: if isActiveMember(pairId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['memberProfiles'])
+        && validMemberProfiles();
+
+      // 二人の所属解除と同時に接続を終了する。
       allow update: if isActiveMember(pairId)
         && request.resource.data.diff(resource.data)
           .affectedKeys().hasOnly(['disconnectedAt'])
@@ -346,7 +363,6 @@ service cloud.firestore {
             || resource.data.authorUid == request.auth.uid
           );
 
-        // 作成前のセッションを撮影者がトランザクションで確認する。
         allow get: if isActiveMember(pairId)
           && !exists(sessionPath(pairId, sessionId));
 
@@ -387,8 +403,6 @@ service cloud.firestore {
 
           allow create: if feedbackId == 'selection'
             && validFeedback(pairId, sessionId);
-
-          // 確定後の変更・削除は、この試作版では許可しない。
         }
       }
     }

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../screens/guess_screen.dart';
 import '../screens/memories_screen.dart';
+import '../screens/partner_albums_screen.dart';
 import '../services/favorite_service.dart';
 
 typedef StartQuiz = Future<void> Function(
@@ -20,7 +22,8 @@ class FocusShell extends StatefulWidget {
 
   final Widget child;
 
-  // クイズ担当者の画面ができたら、ここに画面遷移を渡す。
+  // 独自のクイズ起動処理を指定する場合に使用する。
+  // 指定しなければ、今回取り込んだGuessScreenを開く。
   final StartQuiz? onStartQuiz;
 
   @override
@@ -31,11 +34,14 @@ class _FocusShellState extends State<FocusShell> {
   final _service = FavoriteService();
 
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _notifications;
+
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
 
   int _selectedIndex = 0;
   int _unreadCount = 0;
+
   bool _checkedInitialNotifications = false;
+
   String? _openingId;
 
   @override
@@ -43,9 +49,12 @@ class _FocusShellState extends State<FocusShell> {
     super.initState();
 
     _notifications = _service.watchNotifications();
+
     _subscription = _notifications.listen(
       (snapshot) {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
 
         final unread = snapshot.docs
             .where((document) => document.data()['read'] != true)
@@ -62,14 +71,12 @@ class _FocusShellState extends State<FocusShell> {
         setState(() {
           _unreadCount = unread;
 
-          // 起動時に未読があれば、お知らせを最初に表示する。
           if (openInitially) {
             _selectedIndex = 2;
           }
         });
       },
       onError: (Object error) {
-        // お知らせタブのStreamBuilderにもエラーが表示される。
         debugPrint('お知らせの取得エラー: $error');
       },
     );
@@ -84,24 +91,31 @@ class _FocusShellState extends State<FocusShell> {
   Future<void> _openNotification(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) async {
-    if (_openingId != null) return;
+    if (_openingId != null) {
+      return;
+    }
 
-    setState(() => _openingId = document.id);
-
-    final data = document.data();
-    final pairId = data['pairId'] as String;
-    final sessionId = data['sessionId'] as String;
+    setState(() {
+      _openingId = document.id;
+    });
 
     try {
+      final data = document.data();
+      final pairId = data['pairId'] as String;
+      final sessionId = data['sessionId'] as String;
+
       final payload = await _service.loadQuiz(
         pairId: pairId,
         sessionId: sessionId,
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       if (payload == null) {
-        // 不正解候補が2枚ない場合は、結果をそのまま見せる。
+        // お気に入り以外の写真が2枚未満の場合。
+        // 3択を作れないため、お気に入りの結果を表示する。
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => SessionPhotosScreen(
@@ -110,40 +124,90 @@ class _FocusShellState extends State<FocusShell> {
             ),
           ),
         );
-      } else if (widget.onStartQuiz != null) {
-        await widget.onStartQuiz!(context, payload);
-      } else {
-        // ここをクイズ担当者の画面につなぐ。
-        await showDialog<void>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('お気に入りが届きました！'),
-            content: const Text(
-              'クイズに使う3枚の写真を読み込めました。\n\n'
-              'クイズ画面との接続は準備中です。\n'
-              '正解・写真の順番・好きな理由は保存されています。',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('閉じる'),
-              ),
-            ],
+
+        await _service.markRead(document.id);
+        return;
+      }
+
+      final customStartQuiz = widget.onStartQuiz;
+
+      if (customStartQuiz != null) {
+        await customStartQuiz(context, payload);
+        await _service.markRead(document.id);
+        return;
+      }
+
+      // 保存済みの順番のまま、クイズ画面用のデータへ変換する。
+      final candidates = [
+        for (final photo in payload.photos)
+          GuessCandidate(
+            photoId: photo.id,
+            imageBytes: photo.bytes,
           ),
+      ];
+
+      final candidateIds = candidates
+          .map((candidate) => candidate.photoId)
+          .toSet();
+
+      if (candidates.length != 3 ||
+          candidateIds.length != 3 ||
+          !candidateIds.contains(payload.correctPhotoId)) {
+        throw StateError(
+          'クイズの写真を確認できません。\n'
+          '異なる写真3枚と、正解の写真が必要です。',
         );
       }
 
-      // 既読にしても一覧には残り、何度でも開ける。
-      await _service.markRead(document.id);
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('お知らせを開けませんでした。\n$error')),
+      // 阿部さんのクイズ画面を開く。
+      // 回答→結果表示→閉じると、選んだ写真IDが返ってくる。
+      final selectedPhotoId = await Navigator.of(context).push<String>(
+        MaterialPageRoute<String>(
+          builder: (_) => GuessScreen(
+            candidates: candidates,
+            correctPhotoId: payload.correctPhotoId,
+            reasonTags: payload.reasonLabels,
+          ),
+        ),
       );
+
+      // 回答する前に戻った場合は、未読のまま残す。
+      if (selectedPhotoId == null) {
+        return;
+      }
+
+      if (!candidateIds.contains(selectedPhotoId)) {
+        throw StateError('クイズの回答を確認できませんでした。');
+      }
+
+      // 正解・不正解の表示はGuessScreen側が行う。
+      // ここでは、回答して戻ってきた通知を既読にする。
+      await _service.markRead(document.id);
+
+      debugPrint(
+        '[クイズ] 回答完了：'
+        '${selectedPhotoId == payload.correctPhotoId ? '正解' : '不正解'}',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'お知らせを開くか、既読状態を保存する処理に失敗しました。\n'
+              '$error',
+            ),
+          ),
+        );
     } finally {
       if (mounted) {
-        setState(() => _openingId = null);
+        setState(() {
+          _openingId = null;
+        });
       }
     }
   }
@@ -161,13 +225,17 @@ class _FocusShellState extends State<FocusShell> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('お知らせを取得できません。\n${snapshot.error}'),
+                child: Text(
+                  'お知らせを取得できません。\n${snapshot.error}',
+                ),
               ),
             );
           }
 
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
           }
 
           final documents = snapshot.data!.docs.toList()
@@ -177,6 +245,7 @@ class _FocusShellState extends State<FocusShell> {
 
               final aValue =
                   aTime is Timestamp ? aTime.millisecondsSinceEpoch : 0;
+
               final bValue =
                   bTime is Timestamp ? bTime.millisecondsSinceEpoch : 0;
 
@@ -185,9 +254,13 @@ class _FocusShellState extends State<FocusShell> {
 
           if (documents.isEmpty) {
             return const Center(
-              child: Text(
-                '写真にお気に入りが付くと、\nここにお知らせが届きます。',
-                textAlign: TextAlign.center,
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  '写真にお気に入りが付くと、\n'
+                  'ここにお知らせが届きます。',
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
@@ -195,13 +268,20 @@ class _FocusShellState extends State<FocusShell> {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: documents.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) {
+              return const SizedBox(height: 12);
+            },
             itemBuilder: (context, index) {
               final document = documents[index];
               final data = document.data();
+
               final unread = data['read'] != true;
               final opening = _openingId == document.id;
               final quizAvailable = data['quizAvailable'] == true;
+
+              final description = quizAvailable
+                  ? 'どの写真が選ばれたかな？タップしてクイズへ'
+                  : 'お気に入りの写真を見てみよう';
 
               return Card(
                 color: unread
@@ -213,19 +293,24 @@ class _FocusShellState extends State<FocusShell> {
                     Icons.favorite,
                     color: Color(0xFFB95849),
                   ),
-                  title: const Text('あなたの写真に「好き」が届きました！'),
+                  title: const Text(
+                    'あなたの写真に「好き」が届きました！',
+                  ),
                   subtitle: Text(
-                    '${memoryDate(data['createdAt'])}\n'
-                    '${quizAvailable ? 'どの写真が選ばれたかな？' : 'お気に入りの写真を見てみよう'}',
+                    '${memoryDate(data['createdAt'])}\n$description',
                   ),
                   isThreeLine: true,
                   trailing: opening
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
                         )
-                      : const Icon(Icons.chevron_right),
+                      : const Icon(
+                          Icons.chevron_right,
+                        ),
                   onTap: _openingId == null
                       ? () => _openNotification(document)
                       : null,
@@ -245,14 +330,16 @@ class _FocusShellState extends State<FocusShell> {
         index: _selectedIndex,
         children: [
           widget.child,
-          const MemoriesScreen(),
+          const PartnerAlbumsScreen(),
           _buildNotifications(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
+          setState(() {
+            _selectedIndex = index;
+          });
         },
         destinations: [
           const NavigationDestination(
