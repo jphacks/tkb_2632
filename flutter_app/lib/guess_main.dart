@@ -5,8 +5,8 @@ import 'package:image/image.dart' as img;
 
 import 'screens/guess_screen.dart';
 
-// 3択クイズ（GuessScreen）の動作確認専用のエントリーポイント。
-// main.dart のFirebase初期化・認証フローを経由せず、仮画像3枚でクイズを起動する。
+// 2択クイズ（GuessScreen）の動作確認専用のエントリーポイント。
+// main.dart のFirebase初期化・認証フローを経由せず、仮画像2枚でクイズを起動する。
 //   flutter run -t lib/guess_main.dart
 void main() {
   runApp(
@@ -36,10 +36,6 @@ class _GuessLauncherState extends State<_GuessLauncher> {
       photoId: 'photos/dummy/photo_2.png',
       imageBytes: _dummyPhoto('2', img.ColorRgb8(0x8C, 0xB8, 0xF4)),
     ),
-    GuessCandidate(
-      photoId: 'photos/dummy/photo_3.png',
-      imageBytes: _dummyPhoto('3', img.ColorRgb8(0x9C, 0xD4, 0x9A)),
-    ),
   ];
 
   String _lastResult = 'まだ回答していません';
@@ -51,6 +47,7 @@ class _GuessLauncherState extends State<_GuessLauncher> {
           candidates: _candidates,
           correctPhotoId: 'photos/dummy/photo_2.png',
           reasonTags: const ['表情', '雰囲気'],
+          partnerName: 'Haruka',
         ),
       ),
     );

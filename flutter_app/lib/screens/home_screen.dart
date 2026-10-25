@@ -9,6 +9,7 @@ import '../widgets/profile_avatar.dart';
 
 import 'album_screen.dart';
 import 'connection_success_screen.dart';
+import 'notifications_screen.dart';
 import 'pair_registration_screen.dart';
 import 'profile_screen.dart';
 
@@ -562,6 +563,7 @@ class _ConnectedHomeState extends State<_ConnectedHome> {
                         ),
                       ),
                     ),
+                    const NotificationBell(),
                   ],
                 ),
                 const SizedBox(height: 24),

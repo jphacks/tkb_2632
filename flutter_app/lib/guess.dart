@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-// 3択クイズの内部処理（選択状態・正誤判定・選択肢記号）。
+// 2択クイズの内部処理（選択状態・正誤判定・選択肢記号）。
 // UIとFirebaseには依存しない。
 // 正誤判定は画面表示のためのローカル比較のみで、結果の保存は呼び出し元の責任。
 
@@ -13,7 +13,7 @@ class GuessCandidate {
   final Uint8List imageBytes;
 }
 
-// 0 → A, 1 → B, 2 → C
+// 0 → A, 1 → B
 String guessLabelForIndex(int index) => String.fromCharCode(0x41 + index);
 
 class GuessQuiz {
