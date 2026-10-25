@@ -5,12 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+// 表示順は「どこが好き？」シートの並び順。
 const favoriteReasonLabels = <String, String>{
   'expression': '表情',
   'composition': '構図',
-  'size': '人物の大きさ',
   'background': '背景',
-  'light': '光',
+  'light': '光・色',
+  'size': '人物の大きさ',
   'mood': '雰囲気',
 };
 
@@ -78,6 +79,16 @@ class FavoriteService {
         .doc('selection');
   }
 
+  // 送信前のいいね（本人だけが読み書きする下書き）。
+  DocumentReference<Map<String, dynamic>> likeDraftRef(
+    String pairId,
+    String sessionId,
+  ) {
+    return sessionRef(pairId, sessionId)
+        .collection('likeDrafts')
+        .doc(uid);
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> watchNotifications() {
     return _db
         .collection('users')
@@ -125,6 +136,7 @@ class FavoriteService {
 
     final feedback = feedbackRef(pairId, sessionId);
     final session = sessionRef(pairId, sessionId);
+    final draft = likeDraftRef(pairId, sessionId);
 
     return _db.runTransaction<bool>((transaction) async {
       final existing = await transaction.get(feedback);
@@ -206,6 +218,9 @@ class FavoriteService {
         'createdAt': FieldValue.serverTimestamp(),
         'read': false,
       });
+
+      // 送信したいいねは、下書きから消す。
+      transaction.delete(draft);
 
       return true;
     });

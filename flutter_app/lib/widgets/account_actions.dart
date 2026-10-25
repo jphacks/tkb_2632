@@ -2,6 +2,90 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// 二人の接続を解除する。両方の所属を外す。
+Future<void> disconnectCurrentPair() async {
+  final db = FirebaseFirestore.instance;
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    throw StateError('ユーザー情報を確認できません。');
+  }
+
+  final membershipRef = db.collection('memberships').doc(user.uid);
+
+  await db.runTransaction<void>((transaction) async {
+    final membership = await transaction.get(membershipRef);
+
+    if (!membership.exists) return;
+
+    final pairId = membership.data()?['pairId'];
+
+    if (pairId is! String) {
+      throw StateError('ペア情報を確認できません。');
+    }
+
+    final pairRef = db.collection('pairs').doc(pairId);
+    final pair = await transaction.get(pairRef);
+    final data = pair.data();
+
+    if (data == null) {
+      throw StateError('ペア情報を確認できません。');
+    }
+
+    final members = List<String>.from(data['memberIds'] as List);
+
+    if (members.length != 2 || !members.contains(user.uid)) {
+      throw StateError('ペア情報を確認できません。');
+    }
+
+    // memberIds・セッション・写真は残す。
+    transaction.update(pairRef, {
+      'disconnectedAt': FieldValue.serverTimestamp(),
+    });
+
+    for (final memberUid in members) {
+      transaction.delete(
+        db.collection('memberships').doc(memberUid),
+      );
+    }
+  });
+}
+
+// 接続解除の確認ダイアログ。解除するなら true。
+Future<bool?> confirmDisconnectDialog(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('二人の接続を解除しますか？'),
+      content: const Text(
+        '相手側も未接続のホーム画面に戻ります。\n\n'
+        '名前・アイコン・ログイン状態は残ります。\n'
+        '共有済みの写真とお気に入りは、解除後も'
+        'プロフィール画面の「これまでのアルバム」から見返せます。\n\n'
+        '新しい相手には、このペアの写真は共有されません。\n'
+        '保存前のプロフィール変更は破棄されます。',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(dialogContext).pop(false);
+          },
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(dialogContext).pop(true);
+          },
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFB44238),
+          ),
+          child: const Text('接続を解除する'),
+        ),
+      ],
+    ),
+  );
+}
+
 class AccountActions extends StatefulWidget {
   const AccountActions({
     super.key,
@@ -40,87 +124,10 @@ class _AccountActionsState extends State<AccountActions> {
             .snapshots(includeMetadataChanges: true);
   }
 
-  Future<void> _disconnect() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      throw StateError('ユーザー情報を確認できません。');
-    }
-
-    final membershipRef = _db.collection('memberships').doc(user.uid);
-
-    await _db.runTransaction<void>((transaction) async {
-      final membership = await transaction.get(membershipRef);
-
-      if (!membership.exists) return;
-
-      final pairId = membership.data()?['pairId'];
-
-      if (pairId is! String) {
-        throw StateError('ペア情報を確認できません。');
-      }
-
-      final pairRef = _db.collection('pairs').doc(pairId);
-      final pair = await transaction.get(pairRef);
-      final data = pair.data();
-
-      if (data == null) {
-        throw StateError('ペア情報を確認できません。');
-      }
-
-      final members = List<String>.from(data['memberIds'] as List);
-
-      if (members.length != 2 || !members.contains(user.uid)) {
-        throw StateError('ペア情報を確認できません。');
-      }
-
-      // memberIds・セッション・写真は残す。
-      transaction.update(pairRef, {
-        'disconnectedAt': FieldValue.serverTimestamp(),
-      });
-
-      for (final memberUid in members) {
-        transaction.delete(
-          _db.collection('memberships').doc(memberUid),
-        );
-      }
-    });
-  }
-
   Future<void> _confirmDisconnect() async {
     if (_running || !widget.enabled) return;
 
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('二人の接続を解除しますか？'),
-        content: const Text(
-          '相手側も未接続のホーム画面に戻ります。\n\n'
-          '名前・アイコン・ログイン状態は残ります。\n'
-          '共有済みの写真とお気に入りは、'
-          '解除後も二人それぞれの「アルバム」から見返せます。\n\n'
-          '新しい相手には、このペアの写真は共有されません。\n'
-          '保存前のプロフィール変更は破棄されます。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop(false);
-            },
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop(true);
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFB44238),
-            ),
-            child: const Text('接続を解除する'),
-          ),
-        ],
-      ),
-    );
+    final accepted = await confirmDisconnectDialog(context);
 
     if (accepted != true || !mounted) return;
 
@@ -131,7 +138,7 @@ class _AccountActionsState extends State<AccountActions> {
     widget.onBusyChanged(true);
 
     try {
-      await _disconnect();
+      await disconnectCurrentPair();
 
       if (!mounted) return;
 

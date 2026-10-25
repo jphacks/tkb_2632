@@ -655,7 +655,7 @@ class _SessionPhotosScreenState extends State<SessionPhotosScreen> {
                   statusMessage = '相手のお気に入りを待っています';
                 } else if (quizAvailable) {
                   statusMessage =
-                      'お気に入りが届いています。「お知らせ」から確認できます。';
+                      'お気に入りが届いています。ホームのベル（通知）から確認できます。';
                 } else {
                   statusMessage = 'お気に入りが届きました';
                 }
