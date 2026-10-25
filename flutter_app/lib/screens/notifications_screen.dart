@@ -249,6 +249,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return SizedBox(
+      width: double.infinity,
       height: 60,
       child: Stack(
         alignment: Alignment.center,
