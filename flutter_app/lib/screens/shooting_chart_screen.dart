@@ -89,10 +89,15 @@ class _ChartPhoto {
 class _ChartData {
   const _ChartData({
     required this.partner,
+    required this.subject,
     required this.photos,
   });
 
   final _ChartPartner partner;
+
+  // 「好き」を選んだ人（相手のカルテなら相手、自分のカルテなら自分）。
+  final _ChartPartner subject;
+
   final List<_ChartPhoto> photos;
 
   int get sessionCount {
@@ -194,7 +199,9 @@ class _ChartRepository {
     return partners;
   }
 
-  Future<_ChartData> loadChart(String pairId) async {
+  // mine が false：自分が撮った写真から、相手が選んだお気に入り。
+  // mine が true：相手が撮った写真から、自分が選んだお気に入り。
+  Future<_ChartData> loadChart(String pairId, {bool mine = false}) async {
     final myUid = uid;
     final partners = await loadPartners();
 
@@ -212,6 +219,8 @@ class _ChartRepository {
     }
 
     final partner = selectedPartner;
+    final authorUid = mine ? partner.uid : myUid;
+    final selectorUid = mine ? myUid : partner.uid;
 
     // 同じ写真を重複集計しない。
     final photosByPath = <String, _ChartPhoto>{};
@@ -225,8 +234,8 @@ class _ChartRepository {
       for (final session in sessions.docs) {
         final sessionData = session.data();
 
-        // 自分が撮影した写真だけをカルテの対象にする。
-        if (sessionData['authorUid'] != myUid) {
+        // 「好き」を選ばれる側が撮影した写真だけをカルテの対象にする。
+        if (sessionData['authorUid'] != authorUid) {
           continue;
         }
 
@@ -241,8 +250,8 @@ class _ChartRepository {
           continue;
         }
 
-        if (feedback['authorUid'] != myUid ||
-            feedback['selectedByUid'] != partner.uid) {
+        if (feedback['authorUid'] != authorUid ||
+            feedback['selectedByUid'] != selectorUid) {
           continue;
         }
 
@@ -301,6 +310,9 @@ class _ChartRepository {
 
     return _ChartData(
       partner: partner,
+      subject: mine
+          ? _ChartPartner(uid: myUid, pairs: partner.pairs)
+          : partner,
       photos: photos,
     );
   }
@@ -313,10 +325,14 @@ class ShootingChartScreen extends StatefulWidget {
     super.key,
     this.pairId,
     this.highlightSessionId,
+    this.mine = false,
   });
 
   final String? pairId;
   final String? highlightSessionId;
+
+  // true：自分が選んだ「好き」をまとめた、自分のカルテ。
+  final bool mine;
 
   @override
   State<ShootingChartScreen> createState() => _ShootingChartScreenState();
@@ -342,7 +358,9 @@ class _ShootingChartScreenState extends State<ShootingChartScreen> {
         const Duration(seconds: 30),
       );
     } else {
-      _chartFuture = _repository.loadChart(pairId).timeout(
+      _chartFuture = _repository
+          .loadChart(pairId, mine: widget.mine)
+          .timeout(
         const Duration(seconds: 45),
       );
     }
@@ -494,13 +512,13 @@ class _ShootingChartScreenState extends State<ShootingChartScreen> {
             Row(
               children: [
                 ProfileAvatar(
-                  avatarBase64: data.partner.avatar,
+                  avatarBase64: data.subject.avatar,
                   size: 64,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
-                    '${data.partner.name}の「好き」',
+                    '${data.subject.name}の「好き」',
                     style: const TextStyle(
                       fontSize: 23,
                       fontWeight: FontWeight.bold,
@@ -510,20 +528,26 @@ class _ShootingChartScreenState extends State<ShootingChartScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            const Text(
-              'あなたが撮った写真から、'
-              '相手が選んでくれたお気に入りをまとめました。',
-              style: TextStyle(height: 1.7),
+            Text(
+              widget.mine
+                  ? '相手が撮ってくれた写真から、'
+                      'あなたが選んだお気に入りをまとめました。'
+                  : 'あなたが撮った写真から、'
+                      '相手が選んでくれたお気に入りをまとめました。',
+              style: const TextStyle(height: 1.7),
             ),
             const SizedBox(height: 20),
             if (data.photos.isEmpty)
-              const Card(
+              Card(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(24),
                   child: Text(
-                    'まだ「好き」の記録がありません。\n'
-                    '写真を撮って共有し、相手にお気に入りを選んでもらおう。',
-                    style: TextStyle(height: 1.8),
+                    widget.mine
+                        ? 'まだ「好き」の記録がありません。\n'
+                            '撮ってもらった写真にいいねを送ると、ここにたまります。'
+                        : 'まだ「好き」の記録がありません。\n'
+                            '写真を撮って共有し、相手にお気に入りを選んでもらおう。',
+                    style: const TextStyle(height: 1.8),
                   ),
                 ),
               )
@@ -557,20 +581,22 @@ class _ShootingChartScreenState extends State<ShootingChartScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => _ShootingGuideScreen(data: data),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.camera_alt_outlined),
-              label: const Text('このカルテから撮影ガイドを見る'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+            // 撮影ガイドは相手を撮るためのものなので、相手のカルテにだけ出す。
+            if (!widget.mine)
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _ShootingGuideScreen(data: data),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('このカルテから撮影ガイドを見る'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
               ),
-            ),
             if (currentPhotos.isNotEmpty) ...[
               const SizedBox(height: 28),
               const Text(

@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 
 import '../widgets/account_actions.dart';
 import '../widgets/profile_avatar.dart';
+import 'partner_albums_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -558,6 +559,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ),
+                      // 過去の相手も含めたアルバムは、プロフィールから開く。
+                      if (widget.isEditing) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    Navigator.of(context).push<void>(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            const PartnerAlbumsScreen(),
+                                      ),
+                                    );
+                                  },
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('これまでのアルバム'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       AccountActions(
                           enabled: !_isPicking && !_isSaving,
                           onFinished: widget.onSaved,

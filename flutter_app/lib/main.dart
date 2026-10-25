@@ -15,7 +15,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'screens/connecting_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
-import 'widgets/focus_shell.dart';
 
 @JS('window.sessionStorage.setItem')
 external void _setSessionItem(JSString key, JSString value);
@@ -261,13 +260,11 @@ class _AuthGateState extends State<AuthGate> {
         final avatar = profile['avatarBase64'];
         final uid = FirebaseAuth.instance.currentUser!.uid;
 
-        return FocusShell(
+        return HomeScreen(
           key: ValueKey(uid),
-          child: HomeScreen(
-            nickname: profile['nickname'] as String,
-            avatarBase64: avatar is String ? avatar : '',
-            onProfileChanged: _reloadProfile,
-          ),
+          nickname: profile['nickname'] as String,
+          avatarBase64: avatar is String ? avatar : '',
+          onProfileChanged: _reloadProfile,
         );
       },
     );

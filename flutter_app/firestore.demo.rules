@@ -404,6 +404,29 @@ service cloud.firestore {
           allow create: if feedbackId == 'selection'
             && validFeedback(pairId, sessionId);
         }
+
+        // 送信前のいいね（本人だけが読み書きする下書き）。
+        // selections は { 写真のパス: [理由キー] }。
+        match /likeDrafts/{userId} {
+          allow get: if signedIn()
+            && request.auth.uid == userId
+            && isHistoricalMember(pairId);
+
+          allow create, update: if signedIn()
+            && request.auth.uid == userId
+            && isActiveMember(pairId)
+            && get(sessionPath(pairId, sessionId)).data.status == 'shared'
+            && get(sessionPath(pairId, sessionId)).data.authorUid != userId
+            && !exists(feedbackPath(pairId, sessionId))
+            && request.resource.data.keys()
+              .hasOnly(['selections', 'updatedAt'])
+            && request.resource.data.selections is map
+            && request.resource.data.selections.size() <= 30
+            && request.resource.data.updatedAt == request.time;
+
+          allow delete: if signedIn()
+            && request.auth.uid == userId;
+        }
       }
     }
   }

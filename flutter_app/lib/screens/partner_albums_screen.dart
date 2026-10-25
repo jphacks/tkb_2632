@@ -322,8 +322,7 @@ class _PartnerAlbumsScreenState extends State<PartnerAlbumsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ふたりのアルバム'),
-        automaticallyImplyLeading: false,
+        title: const Text('これまでのアルバム'),
         actions: [
           IconButton(
             onPressed: _refreshProfiles,
