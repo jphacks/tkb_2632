@@ -4,16 +4,19 @@ import 'package:flutter/material.dart';
 
 import 'guess.dart';
 
-const _quizInkColor = Color(0xFF291F1D);
-const _quizCoralColor = Color(0xFFFF735C);
-const _photoPlaceholderColor = Color(0xFFE0E0E0);
-const _labelBackgroundColor = Color(0xFFF1EDEA);
-const _labelTextColor = Color(0xFF8F8A87);
-const _hintBackgroundColor = Color(0xFFF1F2F4);
-const _hintTextColor = Color(0xFF55575C);
+const quizInkColor = Color(0xFF241616);
+const quizCoralColor = Color(0xFFFF6048);
+const _titleColor = Color(0xFF0C1120);
+const _buttonColor = Color(0xFFFF745F);
+const _buttonDisabledColor = Color(0xFFCCCCCC);
+const _cardBorderColor = Color(0xFFE9E9E9);
+const _photoPlaceholderColor = Color(0xFFE1E1E1);
+const _labelBackgroundColor = Color(0xFFF2EFED);
+const _labelTextColor = Color(0xFF8B8E92);
 
-// 3択クイズの回答画面（表示とユーザー操作のみ）。
+// 2択クイズの回答画面（表示とユーザー操作のみ）。
 // 選択状態は GuessQuiz が持ち、変更は onSelect で親に通知する。
+// カードのタップは選択の切り替えだけで、回答の確定は下部のボタンで行う。
 class GuessAnswerView extends StatelessWidget {
   const GuessAnswerView({
     super.key,
@@ -35,30 +38,21 @@ class GuessAnswerView extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 20),
-            const Text(
-              'クイズ🌷',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: _quizInkColor,
-              ),
-            ),
+            const QuizTitleBar(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    const SizedBox(height: 56),
-                    // NOTE: partnerName は現在 'Haruka' の仮置き（guess_screen.dart のTODO参照）。
+                    const SizedBox(height: 50),
                     Text(
                       '$partnerNameが選んだのは、\nどの１枚？',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 24,
                         height: 1.5,
-                        fontWeight: FontWeight.w800,
-                        color: _quizInkColor,
+                        fontWeight: FontWeight.bold,
+                        color: quizInkColor,
                       ),
                     ),
                     const SizedBox(height: 48),
@@ -68,7 +62,7 @@ class GuessAnswerView extends StatelessWidget {
                         for (var i = 0; i < quiz.candidates.length; i++) ...[
                           if (i > 0) const SizedBox(width: 8),
                           Expanded(
-                            child: _CandidateTile(
+                            child: _CandidateCard(
                               candidate: quiz.candidates[i],
                               label: guessLabelForIndex(i),
                               isSelected: quiz.isSelected(
@@ -81,37 +75,15 @@ class GuessAnswerView extends StatelessWidget {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 36),
-                    const _HintPill(),
                     const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton(
-                  // 未選択の間は押せない。
-                  onPressed: quiz.hasSelection ? onSubmit : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _quizCoralColor,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: _quizCoralColor.withValues(
-                      alpha: 0.4,
-                    ),
-                    disabledForegroundColor: Colors.white,
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  child: const Text('この写真だと思う！'),
-                ),
-              ),
+            QuizPrimaryButton(
+              label: 'この写真だと思う！',
+              // 未選択の間は押せない。
+              onPressed: quiz.hasSelection ? onSubmit : null,
             ),
           ],
         ),
@@ -120,8 +92,75 @@ class GuessAnswerView extends StatelessWidget {
   }
 }
 
-class _CandidateTile extends StatelessWidget {
-  const _CandidateTile({
+// クイズ・結果画面で共通の上部タイトル。
+class QuizTitleBar extends StatelessWidget {
+  const QuizTitleBar({super.key, this.color});
+
+  // 省略時は通常の文字色。
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 60,
+      child: Center(
+        child: Text(
+          'クイズ',
+          style: TextStyle(
+            fontSize: 16,
+            height: 22 / 16,
+            fontWeight: FontWeight.w600,
+            color: color ?? _titleColor,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// クイズ・結果画面で共通の下部ボタン。
+class QuizPrimaryButton extends StatelessWidget {
+  const QuizPrimaryButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 40),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            backgroundColor: _buttonColor,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: _buttonDisabledColor,
+            disabledForegroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(36),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          child: Text(label),
+        ),
+      ),
+    );
+  }
+}
+
+// 写真と記号（A/B）を載せたカード。カード全体がタップ領域。
+class _CandidateCard extends StatelessWidget {
+  const _CandidateCard({
     required this.candidate,
     required this.label,
     required this.isSelected,
@@ -135,168 +174,93 @@ class _CandidateTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // ==============================================================
-        // TODO【チーム未確認】：写真タップ拡大は暫定仕様。
-        //                      確認後に変更する可能性あり。
-        // ==============================================================
-        GestureDetector(
-          onTap: () => showGuessPhotoDialog(context, candidate.imageBytes),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              border: Border.all(
-                color: isSelected ? _quizCoralColor : Colors.transparent,
-                width: 3,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(9),
-              ),
-              child: AspectRatio(
-                aspectRatio: 114 / 203,
-                child: _GuessPhoto(bytes: candidate.imageBytes),
-              ),
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '選択肢$label',
+      child: GestureDetector(
+        onTap: onSelect,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isSelected ? quizCoralColor : _cardBorderColor,
+              width: 2,
             ),
           ),
-        ),
-        // 回答の選択は A/B/C のタップで行う。タップ領域は記号より広めに取る。
-        Semantics(
-          button: true,
-          selected: isSelected,
-          label: '選択肢$label',
-          child: InkResponse(
-            onTap: onSelect,
-            radius: 24,
-            child: SizedBox(
-              width: 48,
-              height: 48,
-              child: Center(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected ? _quizCoralColor : _labelBackgroundColor,
-                  ),
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : _labelTextColor,
+          child: Column(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(22),
+                ),
+                child: AspectRatio(
+                  aspectRatio: 175 / 220,
+                  child: GuessPhoto(bytes: candidate.imageBytes),
+                ),
+              ),
+              SizedBox(
+                height: 49,
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected
+                          ? quizCoralColor
+                          : _labelBackgroundColor,
+                    ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : _labelTextColor,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _HintPill extends StatelessWidget {
-  const _HintPill();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      decoration: BoxDecoration(
-        color: _hintBackgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.lightbulb_outline_rounded,
-            size: 22,
-            color: _labelTextColor,
-          ),
-          SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              '写真をタッチすると、大きく見れる',
-              style: TextStyle(fontSize: 12, color: _hintTextColor),
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
 // 画像データが不正でもクラッシュせず、プレースホルダーを表示する。
-class _GuessPhoto extends StatelessWidget {
-  const _GuessPhoto({required this.bytes, this.fit = BoxFit.cover});
+class GuessPhoto extends StatelessWidget {
+  const GuessPhoto({super.key, required this.bytes});
 
-  final Uint8List bytes;
-  final BoxFit fit;
+  final Uint8List? bytes;
 
   @override
   Widget build(BuildContext context) {
-    return Image.memory(
-      bytes,
-      fit: fit,
-      gaplessPlayback: true,
-      errorBuilder: (context, error, stackTrace) => const ColoredBox(
-        color: _photoPlaceholderColor,
-        child: Center(
-          child: Icon(Icons.broken_image_outlined, color: _labelTextColor),
-        ),
+    const placeholder = ColoredBox(
+      color: _photoPlaceholderColor,
+      child: Center(
+        child: Icon(Icons.broken_image_outlined, color: _labelTextColor),
       ),
     );
-  }
-}
 
-// ==============================================================
-// TODO【チーム未確認】：写真タップ拡大は暫定仕様。
-//                      確認後に変更する可能性あり。
-// ==============================================================
-Future<void> showGuessPhotoDialog(BuildContext context, Uint8List bytes) {
-  return showDialog<void>(
-    context: context,
-    barrierColor: Colors.black87,
-    builder: (context) => Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(16),
-      child: Stack(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: InteractiveViewer(
-              maxScale: 4,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: _GuessPhoto(bytes: bytes, fit: BoxFit.contain),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: IconButton.filled(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close_rounded),
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.black54,
-                foregroundColor: Colors.white,
-              ),
-              tooltip: '閉じる',
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+    final data = bytes;
+
+    if (data == null) {
+      return placeholder;
+    }
+
+    return Image.memory(
+      data,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => placeholder,
+    );
+  }
 }

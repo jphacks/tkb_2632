@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:camera/camera.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +9,7 @@ import '../widgets/profile_avatar.dart';
 
 import 'album_screen.dart';
 import 'connection_success_screen.dart';
+import 'notifications_screen.dart';
 import 'pair_registration_screen.dart';
 import 'profile_screen.dart';
 
@@ -177,104 +176,79 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildUnconnectedHome() {
+    const coral = Color(0xFFFF715E);
+
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                    colors: [
-                      Color(0xFFF1DCD4),
-                      Color(0xFFFFFAF5),
-                      Colors.white,
-                    ],
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Semantics(
+                      label: 'プロフィールを変更',
+                      button: true,
+                      child: InkWell(
+                        onTap: _editProfile,
+                        borderRadius: BorderRadius.circular(24),
+                        child: ProfileAvatar(
+                          avatarBase64: widget.avatarBase64,
+                          size: 40,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                child: SafeArea(
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Semantics(
-                            label: 'プロフィールを変更',
-                            button: true,
-                            child: InkWell(
-                              onTap: _editProfile,
-                              borderRadius: BorderRadius.circular(24),
-                              child: ProfileAvatar(
-                                avatarBase64: widget.avatarBase64,
-                                size: 40,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      _LandingArtwork(
-                        avatarBase64: widget.avatarBase64,
-                      ),
-                    ],
+                  const Expanded(
+                    child: Center(child: _LandingArtwork()),
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
-                child: Column(
-                  children: [
-                    const Text(
-                      'ふたりでつないで、\n写真を撮る。',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 25,
-                        height: 1.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF291F1D),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _startConnection,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: coral,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: const StadiumBorder(),
                       ),
-                    ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _startConnection,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF715E),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 19,
-                          ),
-                          shape: const StadiumBorder(),
-                        ),
-                        child: const Text(
-                          '二人のつながりを始める',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      child: const Text(
+                        'コードで参加する',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'コードを作る・入力する方法を選べます',
-                      style: TextStyle(
-                        color: Color(0xFF929296),
-                        fontSize: 13,
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      // TODO【未実装】：QRでの参加は今後対応する。
+                      onPressed: () {},
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF291F1D),
+                        side: const BorderSide(color: coral),
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: const StadiumBorder(),
+                      ),
+                      child: const Text(
+                        'QRで参加する',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -283,57 +257,70 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _LandingArtwork extends StatelessWidget {
-  const _LandingArtwork({required this.avatarBase64});
+  const _LandingArtwork();
 
-  final String avatarBase64;
+  static const _frame = Color(0xFF9A9AA0);
+  static const _coral = Color(0xFFFF7F78);
+  static const _teal = Color(0xFF6E9E95);
 
-  Widget _phone(double width) {
+  Widget _phone(double width, Color personColor) {
     return Container(
       width: width,
-      height: width * 1.85,
-      padding: const EdgeInsets.all(6),
+      height: width * 1.75,
       decoration: BoxDecoration(
-        color: const Color(0xFF302D2B),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x26000000),
-            blurRadius: 12,
-            offset: Offset(3, 8),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(width * 0.12),
+        border: Border.all(color: _frame, width: 1.5),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: width * 0.32,
+            height: 6,
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFC8C8CC),
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Icon(
+                Icons.person_rounded,
+                size: width * 0.6,
+                color: personColor,
+              ),
+            ),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+    );
+  }
+
+  Widget _photo(double width, Color color, double angle) {
+    return Transform.rotate(
+      angle: angle,
+      child: Container(
+        width: width,
+        height: width * 0.85,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(3),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
         child: ColoredBox(
-          color: const Color(0xFFFFF8F2),
-          child: Column(
-            children: [
-              Container(
-                width: width * 0.35,
-                height: 9,
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF302D2B),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: ProfileAvatar(
-                    avatarBase64: avatarBase64,
-                    size: width * 0.75,
-                  ),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.only(bottom: 18),
-                child: Icon(
-                  Icons.photo_library_outlined,
-                  color: Color(0xFFB95849),
-                ),
-              ),
-            ],
+          color: color.withValues(alpha: 0.18),
+          child: Icon(
+            Icons.landscape_rounded,
+            size: width * 0.6,
+            color: color.withValues(alpha: 0.7),
           ),
         ),
       ),
@@ -343,38 +330,35 @@ class _LandingArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: 1,
+      aspectRatio: 1.4,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
+          final phoneWidth = width * 0.24;
 
-          return ClipRect(
+          return ColoredBox(
+            color: const Color(0xFFFAFAFA),
             child: Stack(
               children: [
                 Positioned(
-                  left: width * 0.07,
-                  top: width * 0.04,
-                  child: Transform.rotate(
-                    angle: -12 * math.pi / 180,
-                    child: _phone(width * 0.38),
-                  ),
+                  left: width * 0.2,
+                  top: width * 0.1,
+                  child: _phone(phoneWidth, _coral),
                 ),
                 Positioned(
-                  right: width * 0.04,
-                  bottom: width * 0.03,
-                  child: Transform.rotate(
-                    angle: 12 * math.pi / 180,
-                    child: _phone(width * 0.38),
-                  ),
+                  right: width * 0.2,
+                  top: width * 0.06,
+                  child: _phone(phoneWidth, _teal),
                 ),
                 Positioned(
                   left: width * 0.39,
-                  top: width * 0.35,
-                  child: const Icon(
-                    Icons.favorite_rounded,
-                    color: Color(0xFFFFA18E),
-                    size: 52,
-                  ),
+                  top: width * 0.17,
+                  child: _photo(width * 0.13, _coral, -0.1),
+                ),
+                Positioned(
+                  left: width * 0.47,
+                  top: width * 0.29,
+                  child: _photo(width * 0.13, _teal, 0.08),
                 ),
               ],
             ),
@@ -579,6 +563,7 @@ class _ConnectedHomeState extends State<_ConnectedHome> {
                         ),
                       ),
                     ),
+                    const NotificationBell(),
                   ],
                 ),
                 const SizedBox(height: 24),

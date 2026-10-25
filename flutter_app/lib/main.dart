@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import 'screens/connecting_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
 import 'widgets/focus_shell.dart';
@@ -173,6 +174,20 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
+  void _openOnboarding() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(
+          onSaved: () {
+            // 登録できたらオンボーディングを閉じて、ホームへ切り替える。
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            _reloadProfile();
+          },
+        ),
+      ),
+    );
+  }
+
   String _errorDetail(Object? error) {
     if (error is TimeoutException) {
       return '接続がタイムアウトしました。\n'
@@ -238,8 +253,8 @@ class _AuthGateState extends State<AuthGate> {
         final profile = snapshot.data;
 
         if (profile == null) {
-          return ProfileScreen(
-            onSaved: _reloadProfile,
+          return ConnectingScreen(
+            onStart: _openOnboarding,
           );
         }
 

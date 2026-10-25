@@ -146,10 +146,10 @@ service cloud.firestore {
         && data.choices is list
         && (
           (
-            remaining.size() >= 2
+            remaining.size() >= 1
             && data.quizAvailable == true
-            && data.choices.size() == 3
-            && data.choices.toSet().size() == 3
+            && data.choices.size() == 2
+            && data.choices.toSet().size() == 2
             && data.choices.hasOnly(photoPaths)
             && data.correctPath in data.choices
             && data.choices.toSet()
@@ -157,7 +157,7 @@ service cloud.firestore {
           )
           ||
           (
-            remaining.size() < 2
+            remaining.size() == 0
             && data.quizAvailable == false
             && data.choices.size() == 0
           )

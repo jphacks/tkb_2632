@@ -162,14 +162,14 @@ class FavoriteService {
           .toList()
         ..shuffle(random);
 
-      final quizAvailable = nonFavorites.length >= 2;
+      // クイズは2択（正解1枚＋お気に入り以外の1枚）。
+      final quizAvailable = nonFavorites.isNotEmpty;
       final choices = <String>[];
 
       if (quizAvailable) {
         choices.addAll([
           correctPath,
           nonFavorites[0],
-          nonFavorites[1],
         ]);
         choices.shuffle(random);
       }
@@ -212,7 +212,7 @@ class FavoriteService {
   }
 
   // クイズ担当者の画面へ渡すデータを取得する。
-  // 不正解候補が2枚ない場合はnull。
+  // 不正解候補がない場合はnull。
   Future<QuizPayload?> loadQuiz({
     required String pairId,
     required String sessionId,
@@ -235,8 +235,14 @@ class FavoriteService {
       return null;
     }
 
-    final paths = List<String>.from(data['choices'] as List);
     final correctPath = data['correctPath'] as String;
+    final paths = List<String>.from(data['choices'] as List);
+
+    // 3択で保存された過去のクイズは、正解と残りの先頭1枚で2択にする。
+    if (paths.length > 2) {
+      final other = paths.firstWhere((path) => path != correctPath);
+      paths.retainWhere((path) => path == correctPath || path == other);
+    }
     final reasonMap = Map<String, dynamic>.from(data['reasons'] as Map);
 
     final photos = await Future.wait(

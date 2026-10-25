@@ -3,13 +3,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const _resultBackgroundColor = Color(0xFFFCFBF9);
-const _resultInkColor = Color(0xFF291F1D);
-const _resultCoralColor = Color(0xFFFF735C);
-const _resultMutedColor = Color(0xFF8F8A87);
-const _tagBackgroundColor = Color(0xFFE6ECEE);
-const _tagTextColor = Color(0xFF3A4A52);
-const _photoPlaceholderColor = Color(0xFFE0E0E0);
+import '../guess_src.dart';
+
+const _resultMutedColor = Color(0xFF8B8E92);
+const _cardBorderColor = Color(0xFFE9E9E9);
+const _correctBadgeColor = Color(0xFFFF745F);
+const _tagBackgroundColor = Color(0xFFE5F7F5);
+const _tagBorderColor = Color(0xFF5DC7C1);
+const _tagTextColor = Color(0xFF098C85);
 
 class GuessResultScreen extends StatelessWidget {
   const GuessResultScreen({
@@ -29,7 +30,7 @@ class GuessResultScreen extends StatelessWidget {
   final List<String> reasonTags;
 
   // クイズを閉じる。
-  // 呼び出し元のFocusShellが、その後に撮影カルテを開く。
+  // 呼び出し元の通知一覧が、その後に撮影カルテを開く。
   final VoidCallback onClose;
 
   @override
@@ -39,7 +40,7 @@ class GuessResultScreen extends StatelessWidget {
           ? SystemUiOverlayStyle.dark
           : SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: _resultBackgroundColor,
+        backgroundColor: Colors.white,
         body: SafeArea(
           top: false,
           child: Column(
@@ -47,83 +48,37 @@ class GuessResultScreen extends StatelessWidget {
               _buildHeader(context),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 4),
-                      Text.rich(
-                        TextSpan(
-                          text: '$partnerNameが選んだのは  ',
-                          children: [
-                            TextSpan(
-                              text: correctLabel,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
+                      SizedBox(height: isCorrect ? 46 : 22),
+                      _buildHeadline(),
+                      const SizedBox(height: 12),
+                      Text(
+                        isCorrect
+                            ? '$partnerNameも、$correctLabelを選んでいました。'
+                            : '$partnerNameは、$correctLabelを選んでいました。',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 20,
+                          fontSize: 16,
+                          height: 36 / 16,
                           fontWeight: FontWeight.bold,
-                          color: _resultInkColor,
+                          color: quizInkColor,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: AspectRatio(
-                          aspectRatio: 7 / 6,
-                          child: _buildPhoto(),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        '選ばれた理由',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: _resultInkColor,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
+                      _buildPhotoCard(),
+                      // 記号の円がカードの下にはみ出す分を含む。
+                      const SizedBox(height: 40),
                       _buildReasonTags(),
-                      const SizedBox(height: 24),
-                      const Text(
-                        '相手の「好き」を撮影カルテで振り返って、'
-                        '次の一枚に生かしてみよう。',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: _resultMutedColor,
-                          height: 1.7,
-                        ),
-                      ),
                       const SizedBox(height: 24),
                     ],
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
-                    onPressed: onClose,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _resultCoralColor,
-                      foregroundColor: Colors.white,
-                      shape: const StadiumBorder(),
-                      textStyle: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    child: const Text('撮影カルテを見る'),
-                  ),
-                ),
+              QuizPrimaryButton(
+                label: '撮影カルテ',
+                onPressed: onClose,
               ),
             ],
           ),
@@ -134,61 +89,21 @@ class GuessResultScreen extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
-    final foregroundColor = isCorrect ? _resultInkColor : Colors.white;
 
     return SizedBox(
-      height: topPadding + (isCorrect ? 80 : 120),
+      height: topPadding + (isCorrect ? 60 : 84),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: isCorrect
-                    ? _ConfettiPainter(topPadding: topPadding)
-                    : const _GloomPainter(),
+          if (!isCorrect)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _GloomPainter()),
               ),
             ),
-          ),
           Padding(
             padding: EdgeInsets.only(top: topPadding),
-            child: SizedBox(
-              height: 80,
-              child: Stack(
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: IconButton(
-                      onPressed: onClose,
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                      ),
-                      color: foregroundColor,
-                      tooltip: '撮影カルテへ',
-                    ),
-                  ),
-                  Center(
-                    child: Text(
-                      isCorrect ? '正解！' : '残念！',
-                      style: TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.w900,
-                        color: isCorrect
-                            ? _resultCoralColor
-                            : foregroundColor,
-                        shadows: isCorrect
-                            ? null
-                            : const [
-                                Shadow(
-                                  color: Color(0x66000000),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            child: QuizTitleBar(
+              color: isCorrect ? null : Colors.white,
             ),
           ),
         ],
@@ -196,27 +111,87 @@ class GuessResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPhoto() {
-    const placeholder = ColoredBox(
-      color: _photoPlaceholderColor,
-      child: Center(
-        child: Icon(
-          Icons.broken_image_outlined,
-          color: _resultMutedColor,
-        ),
+  Widget _buildHeadline() {
+    final headline = Text(
+      isCorrect ? '正解！' : '惜しい！',
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: isCorrect ? 36 : 32,
+        height: 1,
+        fontWeight: FontWeight.bold,
+        color: quizCoralColor,
       ),
     );
 
-    final bytes = correctPhotoBytes;
-
-    if (bytes == null) {
-      return placeholder;
+    if (!isCorrect) {
+      return headline;
     }
 
-    return Image.memory(
-      bytes,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => placeholder,
+    return SizedBox(
+      height: 36,
+      width: double.infinity,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _ConfettiPainter(centerY: 18),
+              ),
+            ),
+          ),
+          headline,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoCard() {
+    return SizedBox(
+      width: 204,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomCenter,
+        children: [
+          Container(
+            height: 286,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isCorrect ? quizCoralColor : _cardBorderColor,
+                width: 2,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: SizedBox.expand(
+                child: GuessPhoto(bytes: correctPhotoBytes),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -18,
+            child: Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isCorrect ? _correctBadgeColor : _cardBorderColor,
+              ),
+              child: Text(
+                correctLabel,
+                style: TextStyle(
+                  fontSize: 20,
+                  height: 1,
+                  fontWeight: FontWeight.bold,
+                  color: isCorrect ? Colors.white : _resultMutedColor,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -238,26 +213,36 @@ class GuessResultScreen extends StatelessWidget {
 
     return Wrap(
       alignment: WrapAlignment.center,
-      spacing: 16,
+      spacing: 12,
       runSpacing: 10,
       children: [
         for (final tag in tags)
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 10,
-            ),
+            height: 30,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color: _tagBackgroundColor,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(500),
+              border: Border.all(color: _tagBorderColor),
             ),
-            child: Text(
-              tag,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: _tagTextColor,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.check_rounded,
+                  size: 18,
+                  color: _tagTextColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  tag,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: _tagTextColor,
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -267,10 +252,11 @@ class GuessResultScreen extends StatelessWidget {
 
 class _ConfettiPainter extends CustomPainter {
   const _ConfettiPainter({
-    required this.topPadding,
+    required this.centerY,
   });
 
-  final double topPadding;
+  // 紙吹雪を散らす中心（見出しの縦中央）。
+  final double centerY;
 
   static const _pieces = [
     (-118.0, -22.0, -0.6, Color(0xFFFFC94D)),
@@ -283,10 +269,7 @@ class _ConfettiPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(
-      size.width / 2,
-      topPadding + 40,
-    );
+    final center = Offset(size.width / 2, centerY);
 
     final paint = Paint();
 
@@ -311,7 +294,7 @@ class _ConfettiPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ConfettiPainter oldDelegate) {
-    return oldDelegate.topPadding != topPadding;
+    return oldDelegate.centerY != centerY;
   }
 }
 
