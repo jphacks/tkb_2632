@@ -88,14 +88,6 @@ class _FocusShellState extends State<FocusShell> {
     super.dispose();
   }
 
-  void _openChartsFromHome() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ShootingChartScreen(),
-      ),
-    );
-  }
-
   Future<void> _openChart({
     required String pairId,
     required String sessionId,
@@ -224,28 +216,6 @@ class _FocusShellState extends State<FocusShell> {
     }
   }
 
-  Widget _buildHome() {
-    return Column(
-      children: [
-        SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                onPressed: _openChartsFromHome,
-                icon: const Icon(Icons.assignment_outlined),
-                label: const Text('相手の撮影カルテ'),
-              ),
-            ),
-          ),
-        ),
-        Expanded(child: widget.child),
-      ],
-    );
-  }
-
   Widget _buildNotifications() {
     return Scaffold(
       appBar: AppBar(
@@ -356,7 +326,7 @@ class _FocusShellState extends State<FocusShell> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          _buildHome(),
+          widget.child,
           const PartnerAlbumsScreen(),
           _buildNotifications(),
         ],
