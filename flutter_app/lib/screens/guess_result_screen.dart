@@ -3,10 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// 3択クイズの結果画面。
-// デザインは暫定のため、色・余白・文言はこのファイル内だけで変更できるようにしている。
-// 不正解時も正解時と同じレイアウトを使い、見出しを「残念！」に、
-// 見出し背景を紙吹雪から沈んだ雰囲気のイラストに変える。
 const _resultBackgroundColor = Color(0xFFFCFBF9);
 const _resultInkColor = Color(0xFF291F1D);
 const _resultCoralColor = Color(0xFFFF735C);
@@ -29,21 +25,22 @@ class GuessResultScreen extends StatelessWidget {
   final bool isCorrect;
   final String partnerName;
   final String correctLabel;
-  // 正解IDが候補に無い場合は null。プレースホルダーを表示する。
   final Uint8List? correctPhotoBytes;
   final List<String> reasonTags;
-  // 戻る矢印・下部ボタンのどちらでも呼ばれる。クイズ全体を終了する。
+
+  // クイズを閉じる。
+  // 呼び出し元のFocusShellが、その後に撮影カルテを開く。
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // 不正解時はヘッダーが暗いので、ステータスバーの文字を白にする。
-      value: isCorrect ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
+      value: isCorrect
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: _resultBackgroundColor,
         body: SafeArea(
-          // ヘッダーの背景をステータスバーの裏まで広げるため、上端はヘッダー側で処理する。
           top: false,
           child: Column(
             children: [
@@ -94,20 +91,26 @@ class GuessResultScreen extends StatelessWidget {
                       const SizedBox(height: 10),
                       _buildReasonTags(),
                       const SizedBox(height: 24),
+                      const Text(
+                        '相手の「好き」を撮影カルテで振り返って、'
+                        '次の一枚に生かしてみよう。',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _resultMutedColor,
+                          height: 1.7,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 child: SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: FilledButton(
-                    // ========================================================
-                    // TODO: 将来撮影ガイド遷移に変更
-                    // 現在は暫定でクイズ全体を終了し、選択写真IDを呼び出し元に返す。
-                    // ========================================================
                     onPressed: onClose,
                     style: FilledButton.styleFrom(
                       backgroundColor: _resultCoralColor,
@@ -118,7 +121,7 @@ class GuessResultScreen extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    child: const Text('撮影ガイドを見る'),
+                    child: const Text('撮影カルテを見る'),
                   ),
                 ),
               ),
@@ -129,7 +132,6 @@ class GuessResultScreen extends StatelessWidget {
     );
   }
 
-  // 正解時は紙吹雪、不正解時は「ガーン」と沈む縦線と青いグラデーション。
   Widget _buildHeader(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
     final foregroundColor = isCorrect ? _resultInkColor : Colors.white;
@@ -157,9 +159,11 @@ class GuessResultScreen extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: IconButton(
                       onPressed: onClose,
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                      ),
                       color: foregroundColor,
-                      tooltip: '戻る',
+                      tooltip: '撮影カルテへ',
                     ),
                   ),
                   Center(
@@ -168,7 +172,9 @@ class GuessResultScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 40,
                         fontWeight: FontWeight.w900,
-                        color: isCorrect ? _resultCoralColor : foregroundColor,
+                        color: isCorrect
+                            ? _resultCoralColor
+                            : foregroundColor,
                         shadows: isCorrect
                             ? null
                             : const [
@@ -194,28 +200,39 @@ class GuessResultScreen extends StatelessWidget {
     const placeholder = ColoredBox(
       color: _photoPlaceholderColor,
       child: Center(
-        child: Icon(Icons.broken_image_outlined, color: _resultMutedColor),
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: _resultMutedColor,
+        ),
       ),
     );
 
     final bytes = correctPhotoBytes;
-    if (bytes == null) return placeholder;
+
+    if (bytes == null) {
+      return placeholder;
+    }
 
     return Image.memory(
       bytes,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => placeholder,
+      errorBuilder: (_, _, _) => placeholder,
     );
   }
 
   Widget _buildReasonTags() {
-    final tags = reasonTags.where((tag) => tag.trim().isNotEmpty).toList();
+    final tags = reasonTags
+        .where((tag) => tag.trim().isNotEmpty)
+        .toList();
 
     if (tags.isEmpty) {
       return const Text(
         '理由は登録されていません',
         textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 13, color: _resultMutedColor),
+        style: TextStyle(
+          fontSize: 13,
+          color: _resultMutedColor,
+        ),
       );
     }
 
@@ -226,7 +243,10 @@ class GuessResultScreen extends StatelessWidget {
       children: [
         for (final tag in tags)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 10,
+            ),
             decoration: BoxDecoration(
               color: _tagBackgroundColor,
               borderRadius: BorderRadius.circular(10),
@@ -245,15 +265,14 @@ class GuessResultScreen extends StatelessWidget {
   }
 }
 
-// 見出しの周りの紙吹雪。位置は見出し中央からの相対値で固定配置する。
 class _ConfettiPainter extends CustomPainter {
-  const _ConfettiPainter({required this.topPadding});
+  const _ConfettiPainter({
+    required this.topPadding,
+  });
 
-  // ステータスバー分。紙吹雪は見出しの周りにだけ描く。
   final double topPadding;
 
   static const _pieces = [
-    // (中央からのx, 中央からのy, 角度, 色)
     (-118.0, -22.0, -0.6, Color(0xFFFFC94D)),
     (-150.0, 6.0, 0.9, Color(0xFFFFC94D)),
     (-100.0, 12.0, -0.8, Color(0xFFFF735C)),
@@ -264,14 +283,20 @@ class _ConfettiPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, topPadding + 40);
+    final center = Offset(
+      size.width / 2,
+      topPadding + 40,
+    );
+
     final paint = Paint();
 
     for (final (dx, dy, angle, color) in _pieces) {
       paint.color = color;
+
       canvas.save();
       canvas.translate(center.dx + dx, center.dy + dy);
       canvas.rotate(angle * pi / 2);
+
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           const Rect.fromLTWH(-3, -8, 6, 16),
@@ -279,17 +304,17 @@ class _ConfettiPainter extends CustomPainter {
         ),
         paint,
       );
+
       canvas.restore();
     }
   }
 
   @override
-  bool shouldRepaint(covariant _ConfettiPainter oldDelegate) =>
-      oldDelegate.topPadding != topPadding;
+  bool shouldRepaint(covariant _ConfettiPainter oldDelegate) {
+    return oldDelegate.topPadding != topPadding;
+  }
 }
 
-// 不正解時の見出し背景。漫画の「ガーン」表現のように、
-// 紺から水色へのグラデーションに、上から垂れる縦線と下端の波を重ねる。
 class _GloomPainter extends CustomPainter {
   const _GloomPainter();
 
@@ -300,10 +325,23 @@ class _GloomPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 下端は波で切り取り、下のページ背景へなじませる。
+    if (size.width <= 0 || size.height <= 0) {
+      return;
+    }
+
     final waveTop = size.height - 22;
-    final shape = Path()..lineTo(size.width, 0);
-    _addWave(shape, size.width, waveTop, 10, reverse: true);
+
+    final shape = Path()
+      ..lineTo(size.width, 0);
+
+    _addWave(
+      shape,
+      size.width,
+      waveTop,
+      10,
+      reverse: true,
+    );
+
     shape.close();
 
     canvas.drawPath(
@@ -316,28 +354,49 @@ class _GloomPainter extends CustomPainter {
         ).createShader(Offset.zero & size),
     );
 
-    // 少し上にもう一段、明るい波を重ねて奥行きを出す。
-    final wave = Path()..moveTo(0, waveTop - 14);
-    _addWave(wave, size.width, waveTop - 14, 8);
+    final wave = Path()
+      ..moveTo(0, waveTop - 14);
+
+    _addWave(
+      wave,
+      size.width,
+      waveTop - 14,
+      8,
+    );
+
     wave
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
+
     canvas.save();
     canvas.clipPath(shape);
-    canvas.drawPath(wave, Paint()..color = _waveColor.withValues(alpha: 0.5));
+
+    canvas.drawPath(
+      wave,
+      Paint()..color = _waveColor.withValues(alpha: 0.5),
+    );
+
     canvas.restore();
 
-    // 縦線の長さは毎回同じになるよう固定シードで決める。
     final random = Random(7);
+
     final linePaint = Paint()
       ..color = _lineColor.withValues(alpha: 0.75)
       ..strokeWidth = 5
       ..strokeCap = StrokeCap.round;
+
     const spacing = 14.0;
+
     for (var x = spacing / 2; x < size.width; x += spacing) {
-      final length = size.height * (0.35 + random.nextDouble() * 0.4);
-      canvas.drawLine(Offset(x, -4), Offset(x, length), linePaint);
+      final length = size.height *
+          (0.35 + random.nextDouble() * 0.4);
+
+      canvas.drawLine(
+        Offset(x, -4),
+        Offset(x, length),
+        linePaint,
+      );
     }
   }
 
@@ -349,13 +408,27 @@ class _GloomPainter extends CustomPainter {
     bool reverse = false,
   }) {
     const waveLength = 180.0;
+
     final steps = (width / 4).ceil();
+
+    if (steps <= 0) {
+      return;
+    }
+
     for (var i = 0; i <= steps; i++) {
-      final x = reverse ? width - i * width / steps : i * width / steps;
-      path.lineTo(x, baseY + sin(x / waveLength * 2 * pi) * amplitude);
+      final x = reverse
+          ? width - i * width / steps
+          : i * width / steps;
+
+      path.lineTo(
+        x,
+        baseY + sin(x / waveLength * 2 * pi) * amplitude,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _GloomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GloomPainter oldDelegate) {
+    return false;
+  }
 }

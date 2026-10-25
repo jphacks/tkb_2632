@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 
+import '../widgets/account_actions.dart';
 import '../widgets/profile_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -40,9 +41,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isPicking = false;
   bool _isSaving = false;
+  bool _accountBusy = false;
+
   String? _error;
 
-  bool get _busy => _isPicking || _isSaving;
+  bool get _busy => _isPicking || _isSaving || _accountBusy;
 
   @override
   void initState() {
@@ -51,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameController = TextEditingController(
       text: widget.initialNickname,
     );
+
     _avatarBase64 = widget.initialAvatarBase64;
   }
 
@@ -75,11 +79,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxHeight: 1024,
       );
 
-      // 写真選択をキャンセルした場合は変更しない。
       if (file == null) return;
 
       if (await file.length() > 10 * 1024 * 1024) {
-        throw const FormatException('10MB以下の画像を選んでください。');
+        throw const FormatException(
+          '10MB以下の画像を選んでください。',
+        );
       }
 
       final bytes = await file.readAsBytes();
@@ -87,11 +92,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (decoded == null) {
         throw const FormatException(
-          'この画像は読み込めません。JPEG・PNGなどの画像を選んでください。',
+          'この画像は読み込めません。JPEG・PNGなどを選んでください。',
         );
       }
 
-      // 向きを補正し、中央を正方形に切り抜いて縮小する。
       final oriented = img.bakeOrientation(decoded);
       final square = img.copyResizeCropSquare(
         oriented,
@@ -152,7 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (user == null) {
         if (widget.isEditing) {
-          throw StateError('認証情報を確認できません');
+          throw StateError('認証情報を確認できません。');
         }
 
         final credential = await auth.signInAnonymously();
@@ -160,7 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       if (user == null) {
-        throw StateError('ユーザーを作成できません');
+        throw StateError('ユーザーを作成できません。');
       }
 
       await FirebaseFirestore.instance
@@ -240,11 +244,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 TextSpan(
                                   text: 'Foc',
-                                  style: TextStyle(color: _ink),
+                                  style: TextStyle(
+                                    color: _ink,
+                                  ),
                                 ),
                                 TextSpan(
                                   text: 'US',
-                                  style: TextStyle(color: _accent),
+                                  style: TextStyle(
+                                    color: _accent,
+                                  ),
                                 ),
                               ],
                             ),
@@ -268,7 +276,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 36),
                       ],
-
                       Center(
                         child: Semantics(
                           label: 'プロフィール写真を選ぶ',
@@ -312,7 +319,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: TextButton(
                           onPressed: _busy ? null : _pickAvatar,
                           child: Text(
-                            _isPicking ? '写真を読み込んでいます…' : '写真を選ぶ（任意）',
+                            _isPicking
+                                ? '写真を読み込んでいます…'
+                                : '写真を選ぶ（任意）',
                           ),
                         ),
                       ),
@@ -426,6 +435,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ],
+                      if (widget.isEditing)
+                        AccountActions(
+                          enabled: !_isPicking && !_isSaving,
+                          onFinished: widget.onSaved,
+                          onBusyChanged: (busy) {
+                            if (!mounted) return;
+
+                            setState(() {
+                              _accountBusy = busy;
+                            });
+                          },
+                        ),
                     ],
                   ),
                 ),
