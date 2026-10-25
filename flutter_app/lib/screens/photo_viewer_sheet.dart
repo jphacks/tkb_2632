@@ -9,7 +9,7 @@ const _handleColor = Color(0xFFC8CDD3);
 const _barrierColor = Color(0x40000000);
 const _inkColor = Color(0xFF241616);
 const _mutedColor = Color(0xFF8B8E92);
-const _bigHeartColor = Color(0xFFCCCCCC);
+const _likedHeartColor = Color(0xFFFF3040);
 const _coralColor = Color(0xFFFF6048);
 const _chipSelectedColor = Color(0xFFFFF5F4);
 const _chipSelectedBorderColor = Color(0xFFFFE4E0);
@@ -385,7 +385,7 @@ class _PhotoViewerSheetState extends State<_PhotoViewerSheet> {
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
                           size: 30,
-                          color: _bigHeartColor,
+                          color: liked ? _likedHeartColor : _mutedColor,
                         ),
                       );
                     },

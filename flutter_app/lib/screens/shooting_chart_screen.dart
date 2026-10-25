@@ -20,10 +20,14 @@ class _ChartPartner {
   _ChartPartner({
     required this.uid,
     required this.pairs,
+    this.profileName,
   });
 
   final String uid;
   final List<_PairDoc> pairs;
+
+  // users/{uid} に設定されている最新の名前。取得できなければ null。
+  final String? profileName;
 
   String get pairId => pairs.first.id;
 
@@ -51,15 +55,21 @@ class _ChartPartner {
     return null;
   }
 
+  // 最新の名前 → 接続時に保存した名前 の順に使う。
   String get name {
+    final latest = profileName;
+
+    if (latest != null) {
+      return latest;
+    }
+
     final value = profile?['nickname'];
 
     if (value is String && value.trim().isNotEmpty) {
       return value;
     }
 
-    final shortId = uid.length > 6 ? uid.substring(0, 6) : uid;
-    return '相手（$shortId）';
+    return '名前未保存の相手';
   }
 
   String get avatar {
@@ -168,23 +178,21 @@ class _ChartRepository {
       groups.putIfAbsent(partnerUid, () => []).add(pair);
     }
 
-    final partners = <_ChartPartner>[];
-
-    for (final group in groups.entries) {
-      final pairs = group.value
-        ..sort(
-          (a, b) => _chartTime(b.data()['createdAt']).compareTo(
-            _chartTime(a.data()['createdAt']),
+    final partners = await Future.wait([
+      for (final group in groups.entries)
+        _loadNickname(group.key).then(
+          (profileName) => _ChartPartner(
+            uid: group.key,
+            pairs: group.value
+              ..sort(
+                (a, b) => _chartTime(b.data()['createdAt']).compareTo(
+                  _chartTime(a.data()['createdAt']),
+                ),
+              ),
+            profileName: profileName,
           ),
-        );
-
-      partners.add(
-        _ChartPartner(
-          uid: group.key,
-          pairs: pairs,
         ),
-      );
-    }
+    ]);
 
     partners.sort((a, b) {
       if (a.connected != b.connected) {
@@ -197,6 +205,19 @@ class _ChartRepository {
     });
 
     return partners;
+  }
+
+  // 接続を解除した相手などは読めないことがあるため、失敗しても null を返す。
+  Future<String?> _loadNickname(String userId) async {
+    try {
+      final user = await _db.collection('users').doc(userId).get();
+      final value = user.data()?['nickname'];
+
+      return value is String && value.trim().isNotEmpty ? value : null;
+    } catch (error) {
+      debugPrint('名前の取得エラー: $error');
+      return null;
+    }
   }
 
   // mine が false：自分が撮った写真から、相手が選んだお気に入り。
@@ -311,7 +332,11 @@ class _ChartRepository {
     return _ChartData(
       partner: partner,
       subject: mine
-          ? _ChartPartner(uid: myUid, pairs: partner.pairs)
+          ? _ChartPartner(
+              uid: myUid,
+              pairs: partner.pairs,
+              profileName: await _loadNickname(myUid),
+            )
           : partner,
       photos: photos,
     );
