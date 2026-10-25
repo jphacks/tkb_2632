@@ -382,21 +382,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ),
-                        const Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(text: 'FocUS'),
-                              TextSpan(
-                                text: '.',
-                                style: TextStyle(color: coral),
-                              ),
-                            ],
-                          ),
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: ink,
-                          ),
+                        Image.asset(
+                          'assets/images/logo.png',
+                          height: 21,
+                          semanticLabel: 'FocUS',
                         ),
                       ],
                     ),
