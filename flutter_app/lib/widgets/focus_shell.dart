@@ -8,6 +8,7 @@ import '../screens/memories_screen.dart';
 import '../screens/partner_albums_screen.dart';
 import '../screens/shooting_chart_screen.dart';
 import '../services/favorite_service.dart';
+import '../services/pair_service.dart';
 
 typedef StartQuiz = Future<void> Function(
   BuildContext context,
@@ -37,9 +38,14 @@ class _FocusShellState extends State<FocusShell> {
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _notifications;
 
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+      _membershipSubscription;
 
   int _selectedIndex = 0;
   int _unreadCount = 0;
+
+  // つながる前は「お知らせ」タブを出さない。
+  bool _connected = false;
 
   bool _checkedInitialNotifications = false;
   String? _openingId;
@@ -80,11 +86,27 @@ class _FocusShellState extends State<FocusShell> {
         debugPrint('お知らせの取得エラー: $error');
       },
     );
+
+    _membershipSubscription = PairService().watchMembership().listen(
+      (document) {
+        if (!mounted || document.exists == _connected) {
+          return;
+        }
+
+        setState(() {
+          _connected = document.exists;
+        });
+      },
+      onError: (Object error) {
+        debugPrint('接続状態の取得エラー: $error');
+      },
+    );
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _membershipSubscription?.cancel();
     super.dispose();
   }
 
@@ -322,9 +344,12 @@ class _FocusShellState extends State<FocusShell> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedIndex =
+        !_connected && _selectedIndex == 2 ? 0 : _selectedIndex;
+
     return Scaffold(
       body: IndexedStack(
-        index: _selectedIndex,
+        index: selectedIndex,
         children: [
           widget.child,
           const PartnerAlbumsScreen(),
@@ -332,7 +357,7 @@ class _FocusShellState extends State<FocusShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
+        selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
@@ -349,13 +374,14 @@ class _FocusShellState extends State<FocusShell> {
             selectedIcon: Icon(Icons.photo_library),
             label: 'アルバム',
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.notifications_none),
-            selectedIcon: const Icon(Icons.notifications),
-            label: _unreadCount == 0
-                ? 'お知らせ'
-                : 'お知らせ ($_unreadCount)',
-          ),
+          if (_connected)
+            NavigationDestination(
+              icon: const Icon(Icons.notifications_none),
+              selectedIcon: const Icon(Icons.notifications),
+              label: _unreadCount == 0
+                  ? 'お知らせ'
+                  : 'お知らせ ($_unreadCount)',
+            ),
         ],
       ),
     );
