@@ -1,4 +1,6 @@
 # FocUS
+<img width="1920" height="1080" alt="FocUS_イメージ画像" src="https://github.com/user-attachments/assets/d5b0b105-03ce-4315-b30d-df4f7268bcbd" />
+
 ## 誰にでも、ではなく、あなたに喜んでもらえる一枚を。
 
 **FocUSは、写真を撮り合うほどに相手の「好き」が分かり、次の撮影がもっと楽しみになるアプリです。**
