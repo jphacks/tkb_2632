@@ -368,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         autocorrect: false,
                         decoration: InputDecoration(
                           labelText: 'ニックネーム',
-                          hintText: '例：りお',
+                          hintText: '例：やまだ',
                           filled: true,
                           fillColor: Colors.white,
                           border: OutlineInputBorder(
