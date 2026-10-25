@@ -209,19 +209,297 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  List<Widget> _buildAvatarPicker({
+    required double size,
+    required Color accent,
+    required Color ringColor,
+  }) {
+    return [
+      Center(
+        child: Semantics(
+          label: 'プロフィール写真を選ぶ',
+          button: true,
+          child: InkWell(
+            onTap: _busy ? null : _pickAvatar,
+            borderRadius: BorderRadius.circular(size / 2),
+            child: Stack(
+              children: [
+                ProfileAvatar(
+                  avatarBase64: _avatarBase64,
+                  size: size,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: ringColor,
+                        width: 3,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_outlined,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Center(
+        child: TextButton(
+          onPressed: _busy ? null : _pickAvatar,
+          style: TextButton.styleFrom(foregroundColor: accent),
+          child: Text(
+            _isPicking ? '写真を読み込んでいます…' : '写真を選ぶ（任意）',
+          ),
+        ),
+      ),
+      if (_avatarBase64.isNotEmpty)
+        Center(
+          child: TextButton(
+            onPressed: _busy
+                ? null
+                : () {
+                    setState(() {
+                      _avatarBase64 = '';
+                    });
+                  },
+            style: TextButton.styleFrom(foregroundColor: accent),
+            child: const Text('写真を外す'),
+          ),
+        ),
+    ];
+  }
+
+  Widget _buildNameField({required InputDecoration decoration}) {
+    return TextFormField(
+      controller: _nameController,
+      readOnly: _busy,
+      maxLength: 24,
+      textInputAction: TextInputAction.done,
+      autocorrect: false,
+      decoration: decoration,
+      validator: (value) {
+        final name = value?.trim() ?? '';
+
+        if (name.isEmpty) {
+          return '呼び名を入力してください';
+        }
+
+        if (name.runes.length > 24) {
+          return '24文字以内にしてください';
+        }
+
+        return null;
+      },
+      onFieldSubmitted: (_) => _save(),
+    );
+  }
+
+  List<Widget> _buildError(BuildContext context) {
+    final error = _error;
+
+    if (error == null) {
+      return const [];
+    }
+
+    return [
+      const SizedBox(height: 12),
+      Text(
+        error,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.error,
+          height: 1.7,
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    return widget.isEditing
+        ? _buildEditing(context)
+        : _buildOnboarding(context);
+  }
+
+  // 初回登録（02_onboarding）の画面。
+  Widget _buildOnboarding(BuildContext context) {
+    const ink = Color(0xFF2B2220);
+    const muted = Color(0xFF8A7F7B);
+    const coral = Color(0xFFFF7360);
+
+    final fieldBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: coral),
+    );
+
+    return PopScope(
+      canPop: !_busy,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: [0, 0.3],
+              colors: [
+                Color(0xFFF3DDD5),
+                Colors.white,
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 56,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (Navigator.of(context).canPop())
+                          Positioned(
+                            left: 4,
+                            child: IconButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => Navigator.of(context).maybePop(),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new,
+                                size: 20,
+                                color: ink,
+                              ),
+                            ),
+                          ),
+                        const Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: 'FocUS'),
+                              TextSpan(
+                                text: '.',
+                                style: TextStyle(color: coral),
+                              ),
+                            ],
+                          ),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'ニックネームを決めてください',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: ink,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            '友だちに表示される名前となります。',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: muted,
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          ..._buildAvatarPicker(
+                            size: 96,
+                            accent: coral,
+                            ringColor: Colors.white,
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'ニックネーム',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: ink,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildNameField(
+                            decoration: InputDecoration(
+                              hintText: '例：やまだ',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: fieldBorder,
+                              enabledBorder: fieldBorder,
+                              focusedBorder: fieldBorder.copyWith(
+                                borderSide: const BorderSide(
+                                  color: coral,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                          ..._buildError(context),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _busy ? null : _save,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: coral,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        child: Text(
+                          _isSaving ? '保存しています…' : '二人のつながりを始める',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // プロフィール編集の画面。
+  Widget _buildEditing(BuildContext context) {
     return PopScope(
       canPop: !_busy,
       child: Scaffold(
         backgroundColor: _background,
-        appBar: widget.isEditing
-            ? AppBar(
-                title: const Text('プロフィール'),
-                centerTitle: true,
-                backgroundColor: _background,
-              )
-            : null,
+        appBar: AppBar(
+          title: const Text('プロフィール'),
+          centerTitle: true,
+          backgroundColor: _background,
+        ),
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -237,113 +515,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (!widget.isEditing) ...[
-                        const Center(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'Foc',
-                                  style: TextStyle(
-                                    color: _ink,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'US',
-                                  style: TextStyle(
-                                    color: _accent,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            style: TextStyle(
-                              fontSize: 48,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -2,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Center(
-                          child: Text(
-                            '撮るたび、ふたりの「好き」が伝わる。',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: _muted,
-                              height: 1.8,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 36),
-                      ],
-                      Center(
-                        child: Semantics(
-                          label: 'プロフィール写真を選ぶ',
-                          button: true,
-                          child: InkWell(
-                            onTap: _busy ? null : _pickAvatar,
-                            borderRadius: BorderRadius.circular(64),
-                            child: Stack(
-                              children: [
-                                ProfileAvatar(
-                                  avatarBase64: _avatarBase64,
-                                  size: 112,
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: _accent,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: _background,
-                                        width: 3,
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.camera_alt_outlined,
-                                      size: 18,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      ..._buildAvatarPicker(
+                        size: 112,
+                        accent: _accent,
+                        ringColor: _background,
                       ),
-                      const SizedBox(height: 10),
-                      Center(
-                        child: TextButton(
-                          onPressed: _busy ? null : _pickAvatar,
-                          child: Text(
-                            _isPicking
-                                ? '写真を読み込んでいます…'
-                                : '写真を選ぶ（任意）',
-                          ),
-                        ),
-                      ),
-                      if (_avatarBase64.isNotEmpty)
-                        Center(
-                          child: TextButton(
-                            onPressed: _busy
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _avatarBase64 = '';
-                                    });
-                                  },
-                            child: const Text('写真を外す'),
-                          ),
-                        ),
                       const SizedBox(height: 24),
-                      Text(
-                        widget.isEditing
-                            ? '呼び名とアイコン'
-                            : 'あなたの呼び名を教えてね',
-                        style: const TextStyle(
+                      const Text(
+                        '呼び名とアイコン',
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: _ink,
@@ -360,12 +540,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      TextFormField(
-                        controller: _nameController,
-                        readOnly: _busy,
-                        maxLength: 24,
-                        textInputAction: TextInputAction.done,
-                        autocorrect: false,
+                      _buildNameField(
                         decoration: InputDecoration(
                           labelText: 'ニックネーム',
                           hintText: '例：やまだ',
@@ -375,31 +550,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        validator: (value) {
-                          final name = value?.trim() ?? '';
-
-                          if (name.isEmpty) {
-                            return '呼び名を入力してください';
-                          }
-
-                          if (name.runes.length > 24) {
-                            return '24文字以内にしてください';
-                          }
-
-                          return null;
-                        },
-                        onFieldSubmitted: (_) => _save(),
                       ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _error!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                            height: 1.7,
-                          ),
-                        ),
-                      ],
+                      ..._buildError(context),
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
@@ -413,30 +565,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           child: Text(
-                            _isSaving
-                                ? '保存しています…'
-                                : widget.isEditing
-                                    ? '変更を保存'
-                                    : 'はじめる',
+                            _isSaving ? '保存しています…' : '変更を保存',
                           ),
                         ),
                       ),
-                      if (!widget.isEditing) ...[
-                        const SizedBox(height: 20),
-                        const Center(
-                          child: Text(
-                            'メールアドレス・パスワードの登録は不要です。',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              height: 1.8,
-                              color: _muted,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (widget.isEditing)
-                        AccountActions(
+                      AccountActions(
                           enabled: !_isPicking && !_isSaving,
                           onFinished: widget.onSaved,
                           onBusyChanged: (busy) {
