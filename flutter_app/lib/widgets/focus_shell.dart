@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../screens/guess_screen.dart';
 import '../screens/memories_screen.dart';
 import '../screens/partner_albums_screen.dart';
+import '../screens/shooting_chart_screen.dart';
 import '../services/favorite_service.dart';
 
 typedef StartQuiz = Future<void> Function(
@@ -22,8 +23,8 @@ class FocusShell extends StatefulWidget {
 
   final Widget child;
 
-  // 独自のクイズ起動処理を指定する場合に使用する。
-  // 指定しなければ、今回取り込んだGuessScreenを開く。
+  // 既存の呼び出しとの互換性のため残す。
+  // 通常は指定せず、GuessScreenを使用する。
   final StartQuiz? onStartQuiz;
 
   @override
@@ -41,7 +42,6 @@ class _FocusShellState extends State<FocusShell> {
   int _unreadCount = 0;
 
   bool _checkedInitialNotifications = false;
-
   String? _openingId;
 
   @override
@@ -88,6 +88,28 @@ class _FocusShellState extends State<FocusShell> {
     super.dispose();
   }
 
+  void _openChartsFromHome() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const ShootingChartScreen(),
+      ),
+    );
+  }
+
+  Future<void> _openChart({
+    required String pairId,
+    required String sessionId,
+  }) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ShootingChartScreen(
+          pairId: pairId,
+          highlightSessionId: sessionId,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openNotification(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) async {
@@ -113,81 +135,71 @@ class _FocusShellState extends State<FocusShell> {
         return;
       }
 
-      if (payload == null) {
-        // お気に入り以外の写真が2枚未満の場合。
-        // 3択を作れないため、お気に入りの結果を表示する。
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => SessionPhotosScreen(
-              pairId: pairId,
-              sessionId: sessionId,
+      if (payload != null) {
+        final customStartQuiz = widget.onStartQuiz;
+
+        if (customStartQuiz != null) {
+          // 独自の起動処理を使う場合は、完了後にカルテへ進む。
+          await customStartQuiz(context, payload);
+        } else {
+          final candidates = [
+            for (final photo in payload.photos)
+              GuessCandidate(
+                photoId: photo.id,
+                imageBytes: photo.bytes,
+              ),
+          ];
+
+          final candidateIds = candidates
+              .map((candidate) => candidate.photoId)
+              .toSet();
+
+          if (candidates.length != 3 ||
+              candidateIds.length != 3 ||
+              !candidateIds.contains(payload.correctPhotoId)) {
+            throw StateError('クイズの写真を確認できません。');
+          }
+
+          final selectedPhotoId =
+              await Navigator.of(context).push<String>(
+            MaterialPageRoute<String>(
+              builder: (_) => GuessScreen(
+                candidates: candidates,
+                correctPhotoId: payload.correctPhotoId,
+                reasonTags: payload.reasonLabels,
+              ),
             ),
-          ),
-        );
+          );
 
-        await _service.markRead(document.id);
+          // 回答前に戻った場合はカルテを開かず、未読のまま残す。
+          if (selectedPhotoId == null) {
+            return;
+          }
+
+          if (!candidateIds.contains(selectedPhotoId)) {
+            throw StateError('クイズの回答を確認できませんでした。');
+          }
+
+          debugPrint(
+            '[クイズ] 回答完了：'
+            '${selectedPhotoId == payload.correctPhotoId ? '正解' : '不正解'}',
+          );
+        }
+      }
+
+      if (!mounted) {
         return;
       }
 
-      final customStartQuiz = widget.onStartQuiz;
-
-      if (customStartQuiz != null) {
-        await customStartQuiz(context, payload);
-        await _service.markRead(document.id);
-        return;
-      }
-
-      // 保存済みの順番のまま、クイズ画面用のデータへ変換する。
-      final candidates = [
-        for (final photo in payload.photos)
-          GuessCandidate(
-            photoId: photo.id,
-            imageBytes: photo.bytes,
-          ),
-      ];
-
-      final candidateIds = candidates
-          .map((candidate) => candidate.photoId)
-          .toSet();
-
-      if (candidates.length != 3 ||
-          candidateIds.length != 3 ||
-          !candidateIds.contains(payload.correctPhotoId)) {
-        throw StateError(
-          'クイズの写真を確認できません。\n'
-          '異なる写真3枚と、正解の写真が必要です。',
-        );
-      }
-
-      // 阿部さんのクイズ画面を開く。
-      // 回答→結果表示→閉じると、選んだ写真IDが返ってくる。
-      final selectedPhotoId = await Navigator.of(context).push<String>(
-        MaterialPageRoute<String>(
-          builder: (_) => GuessScreen(
-            candidates: candidates,
-            correctPhotoId: payload.correctPhotoId,
-            reasonTags: payload.reasonLabels,
-          ),
-        ),
+      // 正解・不正解を問わず、回答後は必ずカルテへ進む。
+      // 3択が作れない撮影セットも、カルテでお気に入りを確認する。
+      await _openChart(
+        pairId: pairId,
+        sessionId: sessionId,
       );
 
-      // 回答する前に戻った場合は、未読のまま残す。
-      if (selectedPhotoId == null) {
-        return;
-      }
-
-      if (!candidateIds.contains(selectedPhotoId)) {
-        throw StateError('クイズの回答を確認できませんでした。');
-      }
-
-      // 正解・不正解の表示はGuessScreen側が行う。
-      // ここでは、回答して戻ってきた通知を既読にする。
+      // カルテから戻ったら通知を既読にする。
       await _service.markRead(document.id);
-
-      debugPrint(
-        '[クイズ] 回答完了：'
-        '${selectedPhotoId == payload.correctPhotoId ? '正解' : '不正解'}',
-      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -198,7 +210,7 @@ class _FocusShellState extends State<FocusShell> {
         ..showSnackBar(
           SnackBar(
             content: Text(
-              'お知らせを開くか、既読状態を保存する処理に失敗しました。\n'
+              '画面を開くか、既読状態を保存する処理に失敗しました。\n'
               '$error',
             ),
           ),
@@ -210,6 +222,28 @@ class _FocusShellState extends State<FocusShell> {
         });
       }
     }
+  }
+
+  Widget _buildHome() {
+    return Column(
+      children: [
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: _openChartsFromHome,
+                icon: const Icon(Icons.assignment_outlined),
+                label: const Text('相手の撮影カルテ'),
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: widget.child),
+      ],
+    );
   }
 
   Widget _buildNotifications() {
@@ -233,9 +267,7 @@ class _FocusShellState extends State<FocusShell> {
           }
 
           if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           final documents = snapshot.data!.docs.toList()
@@ -245,7 +277,6 @@ class _FocusShellState extends State<FocusShell> {
 
               final aValue =
                   aTime is Timestamp ? aTime.millisecondsSinceEpoch : 0;
-
               final bValue =
                   bTime is Timestamp ? bTime.millisecondsSinceEpoch : 0;
 
@@ -268,9 +299,7 @@ class _FocusShellState extends State<FocusShell> {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: documents.length,
-            separatorBuilder: (_, _) {
-              return const SizedBox(height: 12);
-            },
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final document = documents[index];
               final data = document.data();
@@ -281,7 +310,7 @@ class _FocusShellState extends State<FocusShell> {
 
               final description = quizAvailable
                   ? 'どの写真が選ばれたかな？タップしてクイズへ'
-                  : 'お気に入りの写真を見てみよう';
+                  : '届いた「好き」を撮影カルテで見てみよう';
 
               return Card(
                 color: unread
@@ -308,9 +337,7 @@ class _FocusShellState extends State<FocusShell> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Icon(
-                          Icons.chevron_right,
-                        ),
+                      : const Icon(Icons.chevron_right),
                   onTap: _openingId == null
                       ? () => _openNotification(document)
                       : null,
@@ -329,7 +356,7 @@ class _FocusShellState extends State<FocusShell> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          widget.child,
+          _buildHome(),
           const PartnerAlbumsScreen(),
           _buildNotifications(),
         ],
